@@ -1,0 +1,15 @@
+/**
+ * @filename: lint-staged.config.js
+ * @type {import('lint-staged').Configuration}
+ */
+export default {
+	"*.{mjs,js,json,ts,tsx}": [
+		"biome check --write",
+		"biome check --write --unsafe",
+		"biome format --write --no-errors-on-unmatched",
+		"biome lint --write --no-errors-on-unmatched",
+	],
+	"*.zig": "zig fmt",
+	// zx does not (yet?) support multiple arguments
+	"*.zx": (files) => files.map((file) => `zig build zx -- fmt --ts ${file}`),
+};

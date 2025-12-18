@@ -1,0 +1,32 @@
+.{
+    .name = .collector_web,
+    .version = "0.0.0",
+    .fingerprint = 0x247f847689263162,
+    .minimum_zig_version = "0.15.2",
+    .dependencies = .{
+        .ptz = .{
+            .url = "git+https://github.com/elpekenin/ptz#25bae9b02280249441b328d2f8b1d867385dc378",
+            .hash = "ptz-0.0.1-CesFmpLwAACsX2AbChqaijsU14kNDe71lMazibSeqNiX",
+        },
+        .zmig = .{
+            .url = "https://github.com/elpekenin/zmig/archive/feat/path-arg.tar.gz",
+            .hash = "zmig-0.0.1-xy17mN3bAAC_ntXYSo94aqJUpsQRZOhe8oWqRgmoOMCY",
+        },
+        .zx = .{
+            // fetching is currently broken (bad build.zig.zon)
+            .path = "../zx",
+        },
+    },
+    .paths = .{
+        "backend/",
+        "frontend/",
+        ".envrc",
+        ".zigversion",
+        "biome.json",
+        "build.zig",
+        "build.zig.zon",
+        "package.json",
+        "pnpm-lock.yaml",
+        "tsconfig.json",
+    },
+}

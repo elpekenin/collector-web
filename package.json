@@ -1,0 +1,19 @@
+{
+	"main": "frontend/main.ts",
+	"devDependencies": {
+		"@biomejs/biome": "2.3.8",
+		"@types/react": "^19.2.7",
+		"@types/react-dom": "^19.2.3",
+		"esbuild": "^0.27.1",
+		"husky": "^9.1.7",
+		"lint-staged": "^16.2.7"
+	},
+	"dependencies": {
+		"react": "^19.2.1",
+		"react-dom": "^19.2.1",
+		"ziex": "^0.0.1-dev.6"
+	},
+	"scripts": {
+		"prepare": "husky"
+	}
+}

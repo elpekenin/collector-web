@@ -1,0 +1,13 @@
+# zig
+.zig-cache
+zig-out
+
+# zx
+/dist
+/bundle
+
+# js
+node_modules
+
+# secrets
+.env
