@@ -51,18 +51,18 @@ pub fn build(b: *std.Build) !void {
     });
 
     // put the server together
-    try zx_build.init(
-        b,
-        b.addExecutable(.{
-            .name = "collector_web",
-            .root_module = frontend,
-        }),
-        .{
-            .site = .{
-                .path = "frontend",
-            },
+    const exe = b.addExecutable(.{
+        .name = "collector_web",
+        .root_module = frontend,
+    });
+
+    const zx_options: zx_build.ZxInitOptions = .{
+        .site = .{
+            .path = b.path("frontend"),
         },
-    );
+    };
+
+    try zx_build.init(b, exe, zx_options);
 
     // access zmig CLI
     const zmig_run = b.addRunArtifact(zmig.artifact("zmig"));

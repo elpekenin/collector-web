@@ -13,8 +13,8 @@
             .hash = "zmig-0.0.1-xy17mN3bAAC_ntXYSo94aqJUpsQRZOhe8oWqRgmoOMCY",
         },
         .zx = .{
-            // fetching is currently broken (bad build.zig.zon)
-            .path = "../zx",
+            .url = "https://github.com/elpekenin/zx/archive/feat/multi-fmt.tar.gz",
+            .hash = "zx-0.1.0-dev.323-8okzKoDCfADxSPDFpnfKO3BHELq9nwYaLVdRcB3EcGjz",
         },
     },
     .paths = .{

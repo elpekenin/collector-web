@@ -10,6 +10,5 @@ export default {
 		"biome lint --write --no-errors-on-unmatched",
 	],
 	"*.zig": "zig fmt",
-	// zx does not (yet?) support multiple arguments
-	"*.zx": (files) => files.map((file) => `zig build zx -- fmt --ts ${file}`),
+	"*.zx": "zig build zx -- fmt --ts",
 };
