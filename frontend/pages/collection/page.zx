@@ -1,8 +1,4 @@
-const std = @import("std");
-
 const zx = @import("zx");
-
-const backend = @import("backend");
 
 const Collection = @import("../components/card.zx").Collection;
 

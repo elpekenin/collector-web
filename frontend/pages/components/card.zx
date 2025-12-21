@@ -42,7 +42,7 @@ pub fn Image(allocator: zx.Allocator, props: ImageProps) zx.Component {
     );
 }
 
-pub const CollectionProps = struct {
+const CollectionProps = struct {
     user_id: []const u8 = "",
     name: ?[]const u8 = null,
 };
