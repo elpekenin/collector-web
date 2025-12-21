@@ -5,41 +5,22 @@ const zx = @import("zx");
 const backend = @import("backend");
 
 const ImageProps = struct {
-    card: backend.sdk.Card,
+    card: backend.db.Table.card.T(),
     width: []const u8 = "10%",
     height: []const u8 = "20%",
 };
 
 pub fn Image(allocator: zx.Allocator, props: ImageProps) zx.Component {
-    const name = switch (props.card) {
-        inline else => |info| info.name,
-    };
+    const card = props.card;
 
-    var allocating: std.Io.Writer.Allocating = .init(allocator);
-    defer allocating.deinit();
-
-    switch (props.card) {
-        .pokemon => |pokemon| {
-            if (pokemon.image) |image| {
-                image.toUrl(&allocating.writer, .high, .png) catch {
-                    allocating.clearRetainingCapacity();
-                };
-            }
-        },
-        else => {},
-    }
-
-    const url: []const u8 = if (allocating.writer.end > 0)
-        allocating.toOwnedSlice() catch "/500.jpg"
-    else
-        "/404.png";
+    const url = card.image_url orelse "/404.png";
 
     return (
-        <div @allocator={allocator}>
-            <img src={url} alt={name} width={props.width} height={props.height} />
-            <p>{name}</p>
-        </div>
-    );
+    <div @allocator={allocator}>
+        <img src={url} alt={card.name} width={props.width} height={props.height} />
+        <p>{card.name}</p>
+    </div>
+);
 }
 
 const CollectionProps = struct {
@@ -48,20 +29,24 @@ const CollectionProps = struct {
 };
 
 // TODO:
-//   db query instead of calling API
 //   show owned/missing based on 'owned' table + user id
+//   filter by props.name
 pub fn Collection(allocator: zx.Allocator, props: CollectionProps) zx.Component {
-    const cards = backend.getCards(allocator, .{
-        .page_size = 5,
-        .where = &.{
-            .like(.name, props.name orelse ""),
-        },
-    }) catch &.{};
-    defer allocator.free(cards);
+    _ = props.name;
+
+    const cards = backend.allCards(allocator) catch {
+        return (
+            <div @allocator={allocator}>
+                Could not retrieve cards from database
+            </div>
+        );
+    };
+    // NOTE: do not free, has to be rendered
+    if (false) defer cards.deinit();
 
     return (
         <div @allocator={allocator}>
-            {for (cards) |card| (<Image card={card} />)}
+            {for (cards.value) |card| (<Image card={card} />)}
         </div>
     );
 }

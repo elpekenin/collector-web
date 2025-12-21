@@ -9,18 +9,18 @@ const std = @import("std");
 const Allocator = std.mem.Allocator;
 
 const ptz = @import("ptz");
-pub const sdk = ptz.Sdk(.en);
+const sdk = ptz.Sdk(.en);
 
 const sqlite = zmig.sqlite;
 
 const zmig = @import("zmig");
 
-const database = @import("database.zig");
+pub const db = @import("database.zig");
 
 const oom = "out of memory";
 const env_key = "ZMIG_DB_PATH";
 
-fn getDbConnection(allocator: Allocator) database.Connection {
+fn getDbConnection(allocator: Allocator) db.Connection {
     const env = std.process.getEnvVarOwned(allocator, env_key) catch |e| switch (e) {
         error.OutOfMemory => @panic(oom),
         error.EnvironmentVariableNotFound => std.debug.panic("${s} not set", .{env_key}),
@@ -31,7 +31,7 @@ fn getDbConnection(allocator: Allocator) database.Connection {
     const path = allocator.dupeZ(u8, env) catch @panic(oom);
     defer allocator.free(path);
 
-    var conn = database.Connection.init(.{
+    var conn = db.Connection.init(.{
         .mode = .{
             .File = path,
         },
@@ -53,29 +53,14 @@ fn getDbConnection(allocator: Allocator) database.Connection {
     return conn;
 }
 
-pub fn getCards(allocator: Allocator, params: sdk.Card.Brief.Params) ![]const sdk.Card {
-    var cards: std.ArrayList(sdk.Card) = if (params.page_size) |page_size|
-        try .initCapacity(allocator, page_size)
-    else
-        .empty;
-    errdefer cards.clearAndFree(allocator);
+pub fn allCards(allocator: Allocator) !db.Owned([]const db.Table.card.T()) {
+    var connection = getDbConnection(allocator);
+    defer connection.deinit();
 
-    var iterator = sdk.Card.all(allocator, params);
-
-    const briefs = try iterator.next() orelse @panic("oops");
-    for (briefs) |brief| {
-        defer brief.deinit();
-
-        const card: sdk.Card = try .get(allocator, .{
-            .id = brief.id,
-        });
-        try cards.append(allocator, card);
-    }
-
-    return cards.toOwnedSlice(allocator);
+    return db.all(&connection, .card, allocator, null);
 }
 
-fn updateOne(allocator: Allocator, connection: *database.Connection, card: sdk.Card) void {
+fn updateOne(allocator: Allocator, connection: *db.Connection, card: sdk.Card) void {
     const id: []const u8, const name: []const u8, const image: ?ptz.Image = switch (card) {
         inline else => |c| .{ c.id, c.name, c.image },
     };
@@ -99,7 +84,7 @@ fn updateOne(allocator: Allocator, connection: *database.Connection, card: sdk.C
 
     // SAFETY: initialized by `sqlite` on problems
     var diagnostics: sqlite.Diagnostics = undefined;
-    database.save(
+    db.save(
         connection,
         .card,
         allocator,
@@ -137,7 +122,7 @@ pub fn updateAll(allocator: Allocator, name: ?[]const u8) void {
     }
 }
 
-fn testConnection() !database.Connection {
+fn testConnection() !db.Connection {
     return .init(.{
         .open_flags = .{
             .write = true,

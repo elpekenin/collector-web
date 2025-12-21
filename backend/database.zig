@@ -15,7 +15,7 @@ pub const Table = enum {
     user,
     variant,
 
-    pub fn getType(comptime self: Table) type {
+    pub fn T(comptime self: Table) type {
         return switch (self) {
             .card => @import("database/tables/Card.zig"),
             .owned => @import("database/tables/Owned.zig"),
@@ -33,10 +33,10 @@ pub fn get(
     connection: *Connection,
     comptime table: Table,
     allocator: Allocator,
-    comptime column: std.meta.FieldEnum(table.getType()),
-    value: @FieldType(table.getType(), @tagName(column)),
+    comptime column: std.meta.FieldEnum(table.T()),
+    value: @FieldType(table.T(), @tagName(column)),
     diagnostics: ?*sqlite.Diagnostics,
-) !Owned(?table.getType()) {
+) !Owned(?table.T()) {
     const query = comptime compPrint("SELECT * FROM {s} WHERE {s}=?", .{
         table.name(),
         @tagName(column),
@@ -53,7 +53,7 @@ pub fn get(
     return .{
         .arena = arena,
         .value = try stmt.oneAlloc(
-            table.getType(),
+            table.T(),
             arena.allocator(),
             .{},
             .{value},
@@ -66,7 +66,7 @@ pub fn all(
     comptime table: Table,
     allocator: Allocator,
     diagnostics: ?*sqlite.Diagnostics,
-) !Owned([]const table.getType()) {
+) !Owned([]const table.T()) {
     const query = comptime compPrint("SELECT * FROM {s}", .{table.name()});
 
     var stmt = try connection.prepareWithDiags(query, .{ .diags = diagnostics });
@@ -78,7 +78,7 @@ pub fn all(
     return .{
         .arena = arena,
         .value = try stmt.all(
-            table.getType(),
+            table.T(),
             arena.allocator(),
             .{},
             .{},
@@ -93,7 +93,7 @@ pub fn save(
     connection: *Connection,
     comptime table: Table,
     allocator: Allocator,
-    value: table.getType(),
+    value: table.T(),
     diagnostics: ?*sqlite.Diagnostics,
 ) !void {
     const query = comptime queryBuilder(
@@ -142,7 +142,7 @@ fn queryBuilder(
 
     var q = query;
 
-    const fields = @typeInfo(table.getType()).@"struct".fields;
+    const fields = @typeInfo(table.T()).@"struct".fields;
 
     if (fields.len == 0) @compileError("bad type");
     if (fields.len > 1) {
