@@ -1,15 +1,26 @@
 const zx = @import("zx");
 
 pub fn Layout(ctx: zx.LayoutContext, children: zx.Component) zx.Component {
+    const appname = "collector";
+
     return (
         <html @allocator={ctx.arena} lang="en-US">
             <head>
-                <title>collector</title>
+                <title>{appname}</title>
                 <link rel="stylesheet" href="/styles.css" />
             </head>
+
+            <header>
+                Welcome to <i>{appname}</i>, still under construction!
+            </header>
+
             <body>
                 {children}
             </body>
+
+            <footer>
+                favicon: <a href="https://iconscout.com/icons/pokemon" class="text-underline font-size-sm" target="_blank">pokemon</a> by <a href="https://iconscout.com/es/contributors/pankti-bhalodia/:assets" class="text-underline font-size-sm">Pankti Bhalodia</a> on <a href="https://iconscout.com" class="text-underline font-size-sm">IconScout</a>
+            </footer>
         </html>
     );
 }

@@ -1,6 +1,7 @@
 const std = @import("std");
 
 const zx_build = @import("zx");
+const ZxOptions = zx_build.ZxInitOptions;
 
 pub fn build(b: *std.Build) !void {
     // options
@@ -8,14 +9,13 @@ pub fn build(b: *std.Build) !void {
     const optimize = b.standardOptimizeOption(.{});
 
     // dependencies
+    const fridge = b.dependency("fridge", .{
+        // embed SQLite in binary
+        .bundle = true,
+    });
     const ptz = b.dependency("ptz", .{
         .target = target,
         .optimize = optimize,
-    });
-    const zmig = b.dependency("zmig", .{
-        .target = target,
-        .optimize = optimize,
-        .migrations = b.path("migrations"),
     });
     const zx = b.dependency("zx", .{
         .target = target,
@@ -28,8 +28,8 @@ pub fn build(b: *std.Build) !void {
         .target = target,
         .optimize = optimize,
         .imports = &.{
+            .{ .name = "fridge", .module = fridge.module("fridge") },
             .{ .name = "ptz", .module = ptz.module("ptz") },
-            .{ .name = "zmig", .module = zmig.module("zmig") },
         },
     });
 
@@ -51,12 +51,19 @@ pub fn build(b: *std.Build) !void {
         .use_llvm = true,
     });
 
-    const zx_options: zx_build.ZxInitOptions = .{
+    const zx_options: ZxOptions = .{
         .cli = .{
             .steps = .{
                 .serve = "run",
                 .dev = "dev",
             },
+        },
+        .plugins = &.{
+            zx_build.plugins.tailwind(b, .{
+                .bin = b.path("node_modules/.bin/tailwindcss"),
+                .input = b.path("frontend/public/styles.css"),
+                .output = b.path("{outdir}/public/out.css"),
+            }),
         },
         .site = .{
             .path = b.path("frontend"),
@@ -64,12 +71,6 @@ pub fn build(b: *std.Build) !void {
     };
 
     try zx_build.init(b, exe, zx_options);
-
-    // access zmig CLI
-    const zmig_run = b.addRunArtifact(zmig.artifact("zmig"));
-    const zmig_step = b.step("zmig", "invoke zmig's CLI");
-    if (b.args) |args| zmig_run.addArgs(args);
-    zmig_step.dependOn(&zmig_run.step);
 
     // access zx CLI
     const zx_run = b.addRunArtifact(zx.artifact("zx"));

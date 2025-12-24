@@ -11,56 +11,31 @@ const Allocator = std.mem.Allocator;
 const ptz = @import("ptz");
 const sdk = ptz.Sdk(.en);
 
-const sqlite = zmig.sqlite;
+pub const database = @import("database.zig");
 
-const zmig = @import("zmig");
-
-pub const db = @import("database.zig");
-
-const oom = "out of memory";
-const env_key = "ZMIG_DB_PATH";
-
-fn getDbConnection(allocator: Allocator) db.Connection {
-    const env = std.process.getEnvVarOwned(allocator, env_key) catch |e| switch (e) {
-        error.OutOfMemory => @panic(oom),
-        error.EnvironmentVariableNotFound => std.debug.panic("${s} not set", .{env_key}),
-        error.InvalidWtf8 => unreachable,
-    };
-    defer allocator.free(env);
-
-    const path = allocator.dupeZ(u8, env) catch @panic(oom);
-    defer allocator.free(path);
-
-    var conn = db.Connection.init(.{
-        .mode = .{
-            .File = path,
-        },
-        .open_flags = .{
-            .create = true,
-            .write = true,
-        },
-    }) catch @panic("could not open database");
-
-    // SAFETY: initialized by `zmig` on problems
-    var diagnostics: zmig.Diagnostics = undefined;
-
-    zmig.applyMigrations(
-        &conn,
-        allocator,
-        .{ .diagnostics = &diagnostics },
-    ) catch std.debug.panic("error with migrations: {f}", .{diagnostics});
-
-    return conn;
+pub fn init(allocator: Allocator) !void {
+    try database.init(allocator);
 }
 
-pub fn allCards(allocator: Allocator) !db.Owned([]const db.Table.card.T()) {
-    var connection = getDbConnection(allocator);
-    defer connection.deinit();
+pub fn allCards(allocator: Allocator, name: []const u8) ![]const database.Card {
+    var session = try database.session(allocator);
+    defer session.deinit();
 
-    return db.all(&connection, .card, allocator, null);
+    var allocating: std.Io.Writer.Allocating = .init(allocator);
+    defer allocating.deinit();
+
+    try allocating.writer.print("%{s}%", .{name});
+
+    const wildcard = try allocating.toOwnedSlice();
+    defer allocator.free(wildcard);
+
+    return session
+        .query(database.Card)
+        .whereRaw("name like ?", .{wildcard})
+        .findAll();
 }
 
-fn updateOne(allocator: Allocator, connection: *db.Connection, card: sdk.Card) void {
+fn updateOne(allocator: Allocator, session: *database.Session, card: sdk.Card) !u64 {
     const id: []const u8, const name: []const u8, const image: ?ptz.Image = switch (card) {
         inline else => |c| .{ c.id, c.name, c.image },
     };
@@ -76,34 +51,33 @@ fn updateOne(allocator: Allocator, connection: *db.Connection, card: sdk.Card) v
         };
     }
 
-    const image_url: ?[]const u8 = if (allocating.writer.end > 0)
-        allocating.toOwnedSlice() catch null
-    else
-        null;
-    defer if (image_url) |url| allocator.free(url);
+    const url, const free = if (allocating.toOwnedSlice()) |slice|
+        .{ slice, true }
+    else |_|
+        .{ "", false };
+    defer if (free) allocator.free(url);
 
-    // SAFETY: initialized by `sqlite` on problems
-    var diagnostics: sqlite.Diagnostics = undefined;
-    db.save(
-        connection,
-        .card,
-        allocator,
-        .{
-            .id = id,
-            .name = name,
-            .image_url = image_url,
-        },
-        &diagnostics,
-    ) catch std.log.err("db error: {f}", .{diagnostics});
+    return session.insert(database.Card, .{
+        .card_id = id,
+        .name = name,
+        .image_url = url,
+    });
 }
 
-pub fn updateAll(allocator: Allocator, name: ?[]const u8) void {
-    var connection = getDbConnection(allocator);
-    defer connection.deinit();
+// TODO:
+//   run this in another thread or something, so that client sees output rendered instantly
+//       perhaps a websocket or something to show a "loading" state or the like
+//       alternatively, run this as a backend-only thing, not exposed in an endpoint
+//   rate limit and/or restrict which users can trigger it
+//   run each of the queries for detailed info inside `for (briefs) |brief|` in parallel
+pub fn updateAll(allocator: Allocator, name: []const u8) !void {
+    var session = try database.session(allocator);
+    defer session.deinit();
 
     var iterator = sdk.Card.all(allocator, .{
+        .page_size = 250,
         .where = &.{
-            .like(.name, name orelse ""),
+            .like(.name, name),
         },
     });
 
@@ -111,44 +85,13 @@ pub fn updateAll(allocator: Allocator, name: ?[]const u8) void {
         for (briefs) |brief| {
             defer brief.deinit();
 
-            const card = sdk.Card.get(
+            const card: sdk.Card = try .get(
                 allocator,
                 .{ .id = brief.id },
-            ) catch continue;
+            );
             defer card.deinit();
 
-            updateOne(allocator, &connection, card);
+            _ = try updateOne(allocator, &session, card);
         }
     }
-}
-
-fn testConnection() !db.Connection {
-    return .init(.{
-        .open_flags = .{
-            .write = true,
-        },
-    });
-}
-
-test "migrations into empty database" {
-    const allocator = std.testing.allocator;
-
-    var connection = try testConnection();
-    defer connection.deinit();
-
-    try zmig.applyMigrations(&connection, allocator, .default);
-}
-
-test updateOne {
-    const allocator = std.testing.allocator;
-
-    var connection = try testConnection();
-    defer connection.deinit();
-
-    const card: sdk.Card = try .get(allocator, .{
-        .id = "base2-1",
-    });
-    defer card.deinit();
-
-    updateOne(allocator, &connection, card);
 }

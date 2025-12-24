@@ -1,203 +1,85 @@
 const std = @import("std");
-const compPrint = std.fmt.comptimePrint;
 const Allocator = std.mem.Allocator;
-const ArenaAllocator = std.heap.ArenaAllocator;
 
-const zmig = @import("zmig");
-const sqlite = zmig.sqlite;
+const fr = @import("fridge");
+pub const Session = fr.Session;
 
-pub const Connection = sqlite.Db;
-pub const Diagnostics = sqlite.Diagnostics;
-
-pub const Table = enum {
-    card,
-    owned,
-    user,
-    variant,
-
-    pub fn T(comptime self: Table) type {
-        return switch (self) {
-            .card => @import("database/tables/Card.zig"),
-            .owned => @import("database/tables/Owned.zig"),
-            .user => @import("database/tables/User.zig"),
-            .variant => @import("database/tables/Variant.zig"),
-        };
-    }
-
-    pub fn name(self: Table) []const u8 {
-        return @tagName(self);
-    }
+pub const Card = struct {
+    id: u64,
+    card_id: []const u8,
+    name: []const u8,
+    image_url: []const u8,
 };
 
-pub fn get(
-    connection: *Connection,
-    comptime table: Table,
-    allocator: Allocator,
-    comptime column: std.meta.FieldEnum(table.T()),
-    value: @FieldType(table.T(), @tagName(column)),
-    diagnostics: ?*sqlite.Diagnostics,
-) !Owned(?table.T()) {
-    const query = comptime compPrint("SELECT * FROM {s} WHERE {s}=?", .{
-        table.name(),
-        @tagName(column),
-    });
+pub const Owned = struct {
+    id: u64,
+    user_id: u64,
+    variant_id: u64,
+    owned: bool,
+};
 
-    var stmt = try connection.prepareWithDiags(query, .{
-        .diags = diagnostics,
-    });
-    defer stmt.deinit();
+pub const User = struct {
+    id: u64,
+    name: []const u8,
+};
 
-    const arena = try newArena(allocator);
-    errdefer allocator.destroy(arena);
+pub const Variant = struct {
+    id: u64,
+    card_id: []const u8,
+    type: []const u8,
+    subtype: ?[]const u8 = null,
+    size: ?[]const u8 = null,
+    stamps: ?[]const []const u8 = null,
+    foil: ?[]const u8 = null,
+};
 
-    return .{
-        .arena = arena,
-        .value = try stmt.oneAlloc(
-            table.T(),
-            arena.allocator(),
-            .{},
-            .{value},
-        ),
+const State = struct {
+    var pool: ?fr.Pool(fr.SQLite3) = null;
+};
+
+fn mkdir(allocator: std.mem.Allocator, dir_path: []const u8) !void {
+    const absolute_path = try std.fs.path.resolve(allocator, &.{dir_path});
+    defer allocator.free(absolute_path);
+
+    std.fs.accessAbsolute(absolute_path, .{}) catch |e| switch (e) {
+        error.FileNotFound => try std.fs.makeDirAbsolute(absolute_path),
+        else => return e,
     };
 }
 
-pub fn all(
-    connection: *Connection,
-    comptime table: Table,
-    allocator: Allocator,
-    diagnostics: ?*sqlite.Diagnostics,
-) !Owned([]const table.T()) {
-    const query = comptime compPrint("SELECT * FROM {s}", .{table.name()});
+pub fn init(allocator: Allocator) !void {
+    if (State.pool) |_| return;
 
-    var stmt = try connection.prepareWithDiags(query, .{ .diags = diagnostics });
-    defer stmt.deinit();
+    var args = try std.process.argsWithAllocator(allocator);
+    defer args.deinit();
 
-    const arena = try newArena(allocator);
-    errdefer allocator.destroy(arena);
+    const appname = args.next() orelse @panic("args[0] == null");
 
-    return .{
-        .arena = arena,
-        .value = try stmt.all(
-            table.T(),
-            arena.allocator(),
-            .{},
-            .{},
-        ),
-    };
-}
+    const dir_path = try std.fs.getAppDataDir(allocator, appname);
+    defer allocator.free(dir_path);
 
-// TODO: create() method, so that id is not required
+    try mkdir(allocator, dir_path);
 
-/// inserts or updates the given values
-pub fn save(
-    connection: *Connection,
-    comptime table: Table,
-    allocator: Allocator,
-    value: table.T(),
-    diagnostics: ?*sqlite.Diagnostics,
-) !void {
-    const query = comptime queryBuilder(
-        table,
-        queryBuilder(
-            table,
-            compPrint("REPLACE INTO {s} (", .{table.name()}),
-            nameCommaSpace,
-            nameCloseParen,
-        ) ++ " VALUES (",
-        placeholderCommaSpace,
-        placeholderCloseParen,
+    const filename = try std.fs.path.joinZ(allocator, &.{ dir_path, "db.sqlite3" });
+    defer if (false) allocator.free(filename); // NOTE: seems like sqlite uses this internally without copying
+
+    var db: Session = try .open(fr.SQLite3, allocator, .{ .filename = filename });
+    defer db.deinit();
+
+    try fr.migrate(&db, @embedFile("schema.sql"));
+
+    State.pool = try .init(
+        allocator,
+        .{ .max_count = 5 },
+        .{ .filename = filename },
     );
+}
 
-    var stmt = try connection.prepareWithDiags(query, .{
-        .diags = diagnostics,
-    });
-    defer stmt.deinit();
-
-    // HACK: work around sqlite's leak
-    const arena = try newArena(allocator);
-    defer {
-        arena.deinit();
-        allocator.destroy(arena);
+pub fn session(allocator: Allocator) !Session {
+    if (State.pool) |_| {
+        // Pool type is pinned, prevent (potenial?) move with capture
+        return State.pool.?.getSession(allocator);
     }
 
-    try stmt.execAlloc(arena.allocator(), .{}, value);
-}
-
-pub fn getFilename(connection: *Connection) [*c]const u8 {
-    return sqlite.c.sqlite3_db_filename(connection.db, null);
-}
-
-// internal query-related code
-
-const StructField = std.builtin.Type.StructField;
-const Format = fn (comptime []const u8, StructField) []const u8;
-
-fn queryBuilder(
-    comptime table: Table,
-    query: []const u8,
-    formatEach: Format,
-    formatLast: Format,
-) []const u8 {
-    if (!@inComptime()) @compileError("must call this in comptime");
-
-    var q = query;
-
-    const fields = @typeInfo(table.T()).@"struct".fields;
-
-    if (fields.len == 0) @compileError("bad type");
-    if (fields.len > 1) {
-        inline for (fields[0 .. fields.len - 1]) |field| {
-            q = formatEach(q, field);
-        }
-    }
-
-    return formatLast(q, fields[fields.len - 1]);
-}
-
-fn spaceNamePlaceholder(comptime query: []const u8, field: StructField) []const u8 {
-    return query ++ compPrint(" {s}=?", .{field.name});
-}
-
-fn spaceNamePlaceholderAnd(comptime query: []const u8, field: StructField) []const u8 {
-    return query ++ compPrint(" {s}=? AND", .{field.name});
-}
-
-fn spaceNamePlaceholderCloseParen(comptime query: []const u8, field: StructField) []const u8 {
-    return query ++ compPrint(" {s}=?)", .{field.name});
-}
-
-fn nameCommaSpace(comptime query: []const u8, field: StructField) []const u8 {
-    return query ++ compPrint("{s}, ", .{field.name});
-}
-
-fn nameCloseParen(comptime query: []const u8, field: StructField) []const u8 {
-    return query ++ compPrint("{s})", .{field.name});
-}
-
-fn placeholderCommaSpace(comptime query: []const u8, _: StructField) []const u8 {
-    return query ++ "?, ";
-}
-
-fn placeholderCloseParen(comptime query: []const u8, _: StructField) []const u8 {
-    return query ++ "?)";
-}
-
-fn newArena(allocator: Allocator) Allocator.Error!*ArenaAllocator {
-    const arena = try allocator.create(ArenaAllocator);
-    arena.* = .init(allocator);
-    return arena;
-}
-
-/// Caller-owned value, with a method to free it
-pub fn Owned(comptime T: type) type {
-    return struct {
-        value: T,
-        arena: *ArenaAllocator,
-
-        pub fn deinit(self: @This()) void {
-            const child = self.arena.child_allocator;
-            self.arena.deinit();
-            child.destroy(self.arena);
-        }
-    };
+    return error.DatabaseNotInit;
 }

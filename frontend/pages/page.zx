@@ -3,9 +3,7 @@ const zx = @import("zx");
 pub fn Page(ctx: zx.PageContext) zx.Component {
     return (
         <main @allocator={ctx.arena}>
-            Welcome to my page, still under construction
-            <br />
-            Try and visit <a href="/collection">your collection</a>
+            Try and visit your collection at `/collection/[name]`
         </main>
     );
 }

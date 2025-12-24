@@ -3,6 +3,8 @@ const std = @import("std");
 const zx = @import("zx");
 const meta = @import("zx_meta").meta;
 
+const backend = @import("backend");
+
 const config: zx.App.Config = .{
     .server = .{},
     .meta = meta,
@@ -13,6 +15,8 @@ pub fn main() !void {
     defer _ = gpa.deinit();
 
     const allocator = gpa.allocator();
+
+    try backend.init(allocator);
 
     const app: *zx.App = try .init(allocator, config);
     defer app.deinit();

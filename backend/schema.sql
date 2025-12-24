@@ -1,21 +1,21 @@
-CREATE TABLE IF NOT EXISTS user (
+CREATE TABLE IF NOT EXISTS "User" (
     id INTEGER PRIMARY KEY NOT NULL,
     name TEXT NOT NULL,
 
     CHECK (name <> '')
 ) STRICT;
 
-CREATE TABLE IF NOT EXISTS card (
-    id TEXT PRIMARY KEY NOT NULL UNIQUE,
+CREATE TABLE IF NOT EXISTS "Card" (
+    id INTEGER PRIMARY KEY NOT NULL,
+    card_id TEXT NOT NULL UNIQUE,
     name TEXT NOT NULL,
     image_url TEXT,
 
-    CHECK (id <> ''),
-    CHECK (name <> ''),
-    CHECK (image_url IS NULL OR image_url <> '')
+    CHECK (card_id <> ''),
+    CHECK (name <> '')
 ) STRICT;
 
-CREATE TABLE IF NOT EXISTS variant (
+CREATE TABLE IF NOT EXISTS "Variant" (
     id INTEGER PRIMARY KEY NOT NULL,
     card_id TEXT NOT NULL,
     type TEXT NOT NULL,
@@ -24,7 +24,7 @@ CREATE TABLE IF NOT EXISTS variant (
     stamp TEXT,
     foil TEXT,
 
-    FOREIGN KEY(card_id) REFERENCES card(id),
+    FOREIGN KEY(card_id) REFERENCES card(card_id),
 
     CHECK (type <> ''),
     CHECK (subtype IS NULL OR subtype <> ''),
@@ -33,7 +33,7 @@ CREATE TABLE IF NOT EXISTS variant (
     CHECK (foil IS NULL OR foil <> '')
 ) STRICT;
 
-CREATE TABLE IF NOT EXISTS owned (
+CREATE TABLE IF NOT EXISTS "Owned" (
     user_id INTEGER NOT NULL,
     variant_id INTEGER NOT NULL,
     owned INTEGER NOT NULL,

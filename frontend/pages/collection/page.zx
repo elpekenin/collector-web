@@ -1,7 +1,0 @@
-const zx = @import("zx");
-
-const Collection = @import("../components/card.zx").Collection;
-
-pub fn Page(ctx: zx.PageContext) zx.Component {
-    return (<Collection @allocator={ctx.allocator} />);
-}

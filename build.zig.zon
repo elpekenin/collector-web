@@ -4,16 +4,16 @@
     .fingerprint = 0x247f847689263162,
     .minimum_zig_version = "0.15.2",
     .dependencies = .{
-        .ptz = .{
-            .url = "git+https://github.com/elpekenin/ptz#ec572454bb5d54a3ebd5cc23b15165feb3bac2ba",
-            .hash = "ptz-0.0.1-CesFmibxAAATbc1pNCGUegbCmWk5Cc-2B7hJI8xqDZo1",
+        .fridge = .{
+            .url = "git+https://github.com/cztomsik/fridge#edf00f4c346bcaf29d354b56f1befd3cf0d1291b",
+            .hash = "fridge-0.9.5-3GyIinW6AQCTX2gOwlrjOhpZxNqTnYx1Nd0Gh3XryPvn",
         },
-        .zmig = .{
-            .path = "../zmig",
+        .ptz = .{
+            .url = "git+https://github.com/elpekenin/ptz#75f0622fba11e7b7c2c4b5104e5b7b3390b658a9",
+            .hash = "ptz-0.0.1-CesFmibxAABzTsoT5jf0m6EPafqp5qtdQF_Yt97RPRwB",
         },
         .zx = .{
-            .url = "git+https://github.com/nurulhudaapon/zx#190f49dfd9806f697685c6eb093882cb205e775b",
-            .hash = "zx-0.1.0-dev.394-8okzKjANdwA18tCMRdpfyoaQ1ZMLN-2kKRJqdtLdV2aw",
+            .path = "../zx",
         },
     },
     .paths = .{

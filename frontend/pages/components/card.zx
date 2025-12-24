@@ -5,7 +5,7 @@ const zx = @import("zx");
 const backend = @import("backend");
 
 const ImageProps = struct {
-    card: backend.db.Table.card.T(),
+    card: backend.database.Card,
     width: []const u8 = "10%",
     height: []const u8 = "20%",
 };
@@ -13,40 +13,51 @@ const ImageProps = struct {
 pub fn Image(allocator: zx.Allocator, props: ImageProps) zx.Component {
     const card = props.card;
 
-    const url = card.image_url orelse "/404.png";
-
     return (
-    <div @allocator={allocator}>
-        <img src={url} alt={card.name} width={props.width} height={props.height} />
-        <p>{card.name}</p>
-    </div>
-);
+        <div @allocator={allocator}>
+            <img src={card.image_url} alt={card.name} width={props.width} height={props.height} />
+            <p>{card.name}</p>
+        </div>
+    );
 }
 
 const CollectionProps = struct {
     user_id: []const u8 = "",
-    name: ?[]const u8 = null,
+    name: []const u8,
 };
 
 // TODO:
 //   show owned/missing based on 'owned' table + user id
-//   filter by props.name
 pub fn Collection(allocator: zx.Allocator, props: CollectionProps) zx.Component {
-    _ = props.name;
-
-    const cards = backend.allCards(allocator) catch {
+    const cards = backend.allCards(allocator, props.name) catch |e| {
         return (
             <div @allocator={allocator}>
-                Could not retrieve cards from database
+                Could not retrieve cards from database: {@errorName(e)}
             </div>
         );
     };
-    // NOTE: do not free, has to be rendered
-    if (false) defer cards.deinit();
+
+    var allocating: std.Io.Writer.Allocating = .init(allocator);
+    defer allocating.deinit();
+
+    allocating.writer.print("/update/{s}", .{props.name}) catch {
+        allocating.clearRetainingCapacity();
+    };
+
+    const url = allocating.toOwnedSlice() catch "";
+    defer if (false) allocator.free(url);
 
     return (
         <div @allocator={allocator}>
-            {for (cards.value) |card| (<Image card={card} />)}
+            {if (cards.len == 0) (
+                <>
+                    No cards found with '{props.name}' in their name
+                    <br />
+                    HINT: Try <a href={url}>fetching them</a>
+                </>
+            ) else (
+                for (cards) |card| (<Image card={card} />)
+            )}
         </div>
     );
 }
