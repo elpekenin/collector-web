@@ -61,8 +61,8 @@ pub fn build(b: *std.Build) !void {
         .plugins = &.{
             zx_build.plugins.tailwind(b, .{
                 .bin = b.path("node_modules/.bin/tailwindcss"),
-                .input = b.path("frontend/public/styles.css"),
-                .output = b.path("{outdir}/public/out.css"),
+                .input = b.path("frontend/_/styles.css"),
+                .output = b.path("{outdir}/public/styles.css"),
             }),
         },
         .site = .{
