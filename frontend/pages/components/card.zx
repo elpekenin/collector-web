@@ -16,7 +16,7 @@ pub fn Image(allocator: zx.Allocator, props: ImageProps) zx.Component {
     const card = props.card;
 
     return (
-        <div @allocator={allocator} class="flex flex-col items-center">
+        <div @{allocator} class="flex flex-col items-center">
             <img src={card.image_url} alt="image not found" aria-label={card.name} width={props.width} height={props.height} class="w-40 h-auto" />
             <p class="mt-2 text-center">{card.name}</p>
         </div>
@@ -30,7 +30,7 @@ const CollectionProps = struct {
 
 pub fn Collection(allocator: zx.Allocator, props: CollectionProps) zx.Component {
     return (
-        <div @allocator={allocator}>
+        <div @{allocator}>
             {if (backend.allCards(allocator, props.name)) |cards| (
                 if (cards.len == 0) (
                     <>
@@ -40,12 +40,12 @@ pub fn Collection(allocator: zx.Allocator, props: CollectionProps) zx.Component 
                     </>
                 ) else (
                     <div class="grid grid-cols-5 gap-4">
-                        {for (cards) |card| (<Image card={card} />)}
+                        {for (cards) |card| (<Image {card} />)}
                     </div>
                 )
             ) else |e| (
                 <>
-                    Could not retrieve cards from database: <Error e={e} />
+                    Could not retrieve cards from database: <Error {e} />
                 </>
             )}
         </div>

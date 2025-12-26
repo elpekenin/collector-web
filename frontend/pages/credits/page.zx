@@ -8,7 +8,7 @@ const LinkProps = struct {
 
 fn Link(allocator: zx.Allocator, props: LinkProps) zx.Component {
     return (
-        <div @allocator={allocator}>
+        <div @{allocator}>
             <a href={props.link}>{props.name}</a>
             ({props.description})
         </div>
@@ -40,11 +40,7 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
             <ul class="list-inside list-disc" role="list">
                 {for (elements) |element| (
                     <li>
-                        <Link
-                            name={element.name}
-                            description={element.description}
-                            link={element.link}
-                        />
+                        <Link name={element.name} description={element.description} link={element.link} />
                     </li>
                 )}
             </ul>

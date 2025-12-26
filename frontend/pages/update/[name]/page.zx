@@ -15,7 +15,7 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
                 </>
             ) else |e| (
                 <>
-                    Error trying to update {name} cards: <Error e={e} />
+                    Error trying to update {name} cards: <Error {e} />
                 </>
             )}
         </div>

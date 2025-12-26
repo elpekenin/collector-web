@@ -6,7 +6,7 @@ const ErrorProps = struct {
 
 pub fn Error(allocator: zx.Allocator, props: ErrorProps) zx.Component {
     return (
-        <div @allocator={allocator} class="text-accent3">
+        <div @{allocator} class="text-accent3">
             {@errorName(props.e)}
         </div>
     );
