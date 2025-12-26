@@ -2,8 +2,8 @@ const zx = @import("zx");
 
 pub fn Page(ctx: zx.PageContext) zx.Component {
     return (
-        <main @allocator={ctx.arena}>
+        <div @allocator={ctx.arena}>
             Try and visit your collection at `/collection/[name]`
-        </main>
+        </div>
     );
 }

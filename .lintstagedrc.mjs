@@ -4,8 +4,7 @@
  */
 export default {
 	"*.{mjs,js,json,ts,tsx}": [
-		"biome check --write",
-		"biome check --write --unsafe",
+		"biome check --write --unsafe --no-errors-on-unmatched",
 		"biome format --write --no-errors-on-unmatched",
 		"biome lint --write --no-errors-on-unmatched",
 	],

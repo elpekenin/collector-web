@@ -4,6 +4,8 @@ const zx = @import("zx");
 
 const backend = @import("backend");
 
+const Error = @import("error.zx").Error;
+
 const ImageProps = struct {
     card: backend.database.Card,
     width: []const u8 = "10%",
@@ -27,34 +29,24 @@ const CollectionProps = struct {
 };
 
 pub fn Collection(allocator: zx.Allocator, props: CollectionProps) zx.Component {
-    const cards = backend.allCards(allocator, props.name) catch |e| {
-        return (
-            <div @allocator={allocator}>
-                Could not retrieve cards from database: {@errorName(e)}
-            </div>
-        );
-    };
-
-    var allocating: std.Io.Writer.Allocating = .init(allocator);
-    defer allocating.deinit();
-
-    allocating.writer.print("/update/{s}", .{props.name}) catch {
-        allocating.clearRetainingCapacity();
-    };
-
-    const url = allocating.toOwnedSlice() catch "";
-    defer if (false) allocator.free(url);
-
     return (
-        <div @allocator={allocator} class="grid grid-cols-5 gap-4">
-            {if (cards.len == 0) (
+        <div @allocator={allocator}>
+            {if (backend.allCards(allocator, props.name)) |cards| (
+                if (cards.len == 0) (
+                    <>
+                        No cards found with '{props.name}' in their name
+                        <br />
+                        HINT: Try <a href={backend.printStr(allocator, "/update/{s}", .{props.name}) catch ""}>fetching them</a>
+                    </>
+                ) else (
+                    <div class="grid grid-cols-5 gap-4">
+                        {for (cards) |card| (<Image card={card} />)}
+                    </div>
+                )
+            ) else |e| (
                 <>
-                    No cards found with '{props.name}' in their name
-                    <br />
-                    HINT: Try <a href={url} class="text-white">fetching them</a>
+                    Could not retrieve cards from database: <Error e={e} />
                 </>
-            ) else (
-                for (cards) |card| (<Image card={card} />)
             )}
         </div>
     );

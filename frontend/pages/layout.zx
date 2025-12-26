@@ -1,28 +1,54 @@
 const zx = @import("zx");
 
+const backend = @import("backend");
+
 pub fn Layout(ctx: zx.LayoutContext, children: zx.Component) zx.Component {
     const appname = "collector";
 
-    // NOTE: header's height must match body's pt, and footer's with body's pb
+    const header_height = 16;
+    const footer_height = 16;
+
+    const common = "flex items-center justify-center";
+
+    const header_class = backend.printStr(
+        ctx.arena,
+        "fixed top-0 left-0 w-full h-{} bg-accent2 {s}",
+        .{header_height, common},
+    ) catch @panic("OOM");
+
+    const main_class = backend.printStr(
+        ctx.arena,
+        "w-full h-full pt-{} pb-{} {s}",
+        .{header_height, footer_height, common},
+    ) catch @panic("OOM");
+
+    const footer_class = backend.printStr(
+        ctx.arena,
+        "fixed bottom-0 left-0 w-full h-{} bg-accent2 {s}",
+        .{footer_height, common},
+    ) catch @panic("OOM");
 
     return (
         <html @allocator={ctx.arena} lang="en-US">
             <head>
                 <title>{appname}</title>
                 <link rel="stylesheet" href="/styles.css" />
+                <link rel="icon" href="/favicon.svg" sizes="any" type="image/svg+xml" />
             </head>
 
-            <header class="fixed top-0 left-0 w-full flex items-center justify-center z-50 h-16 bg-blue-900">
-                Welcome to <i>{appname}</i>, still under construction!
-            </header>
+            <body class="h-screen bg-primary text-secondary">
+                <header class={header_class}>
+                    Welcome to <a href="/">{appname}</a>, still under construction!
+                </header>
 
-            <body class="w-full flex items-center justify-center pt-16 pb-16 bg-slate-950 text-white">
-                {children}
+                <main class={main_class}>
+                    {children}
+                </main>
+
+                <footer class={footer_class}>
+                    Made with love, by <a href="https://github.com/elpekenin">@elpekenin</a>
+                </footer>
             </body>
-
-            <footer class="fixed bottom-0 left-0 w-full flex items-center justify-center z-50 h-16 bg-blue-900">
-                favicon: <a href="https://iconscout.com/icons/pokemon" class="text-underline font-size-sm" target="_blank">pokemon</a> by <a href="https://iconscout.com/es/contributors/pankti-bhalodia/:assets" class="text-underline font-size-sm">Pankti Bhalodia</a> on <a href="https://iconscout.com" class="text-underline font-size-sm">IconScout</a>
-            </footer>
         </html>
     );
 }

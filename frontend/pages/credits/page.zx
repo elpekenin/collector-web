@@ -1,0 +1,53 @@
+const zx = @import("zx");
+
+const LinkProps = struct {
+    name: []const u8,
+    description: []const u8,
+    link: []const u8,
+};
+
+fn Link(allocator: zx.Allocator, props: LinkProps) zx.Component {
+    return (
+        <div @allocator={allocator}>
+            <a href={props.link}>{props.name}</a>
+            ({props.description})
+        </div>
+    );
+}
+
+const elements: []const LinkProps = &.{
+    .{
+        .name = "zig",
+        .description = "programming languge",
+        .link = "",
+    },
+    .{
+        .name = "zx",
+        .description = "web framework",
+        .link = "",
+    },
+    .{
+        .name = "Pnakti Bhalodia",
+        .description = "favicon",
+        .link = "https://iconscout.com/es/contributors/pankti-bhalodia/:assets",
+    },
+};
+
+pub fn Page(ctx: zx.PageContext) zx.Component {
+    return (
+        <div @allocator={ctx.arena}>
+            Non-exhaustive list of tools/resources used to build this website, thanks to all of you
+            <ul class="list-inside list-disc" role="list">
+                {for (elements) |element| (
+                    <li>
+                        <Link
+                            name={element.name}
+                            description={element.description}
+                            link={element.link}
+                        />
+                    </li>
+                )}
+            </ul>
+        </div>
+    );
+}

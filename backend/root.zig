@@ -17,16 +17,20 @@ pub fn init(allocator: Allocator) !void {
     try database.init(allocator);
 }
 
+pub fn printStr(allocator: Allocator, comptime fmt: []const u8, args: anytype) ![]const u8 {
+    var allocating: std.Io.Writer.Allocating = .init(allocator);
+    defer allocating.deinit();
+
+    try allocating.writer.print(fmt, args);
+
+    return allocating.toOwnedSlice();
+}
+
 pub fn allCards(allocator: Allocator, name: []const u8) ![]const database.Card {
     var session = try database.session(allocator);
     defer session.deinit();
 
-    var allocating: std.Io.Writer.Allocating = .init(allocator);
-    defer allocating.deinit();
-
-    try allocating.writer.print("%{s}%", .{name});
-
-    const wildcard = try allocating.toOwnedSlice();
+    const wildcard = try printStr(allocator, "%{s}%", .{name});
     defer allocator.free(wildcard);
 
     return session
@@ -40,22 +44,10 @@ const InsertRes = struct {
 };
 
 fn insert(allocator: Allocator, session: *database.Session, brief: sdk.Card.Brief) !InsertRes {
-    var allocating: std.Io.Writer.Allocating = .init(allocator);
-    defer allocating.deinit();
+    const image = brief.image orelse return error.ImageNotFound;
 
-    if (brief.image) |image| {
-        allocating.clearRetainingCapacity();
-
-        image.toUrl(&allocating.writer, .high, .jpg) catch {
-            allocating.clearRetainingCapacity();
-        };
-    }
-
-    const url, const free = if (allocating.toOwnedSlice()) |slice|
-        .{ slice, true }
-    else |_|
-        .{ "", false };
-    defer if (free) allocator.free(url);
+    const url = try printStr(allocator, "{f}", .{image});
+    defer allocator.free(url);
 
     // ignore TCG Pocket cards
     if (std.mem.indexOf(u8, url, "tcgp")) |_| {
@@ -71,6 +63,8 @@ fn insert(allocator: Allocator, session: *database.Session, brief: sdk.Card.Brie
         error.UniqueViolation => .{ .new_row = false },
         else => return err,
     };
+
+    //TODO: parse variants
 
     return .{ .new_row = true };
 }
