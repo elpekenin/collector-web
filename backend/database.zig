@@ -24,7 +24,7 @@ pub fn init(allocator: Allocator) !void {
     var args = try std.process.argsWithAllocator(allocator);
     defer args.deinit();
 
-    const appdir = args.next() orelse @panic("args[0] == null");
+    const appdir = args.next() orelse return error.MissingExeArg;
     const appname = std.fs.path.basename(appdir);
 
     const dir_path = try std.fs.getAppDataDir(allocator, appname);

@@ -2,7 +2,7 @@ const zx = @import("zx");
 
 const Collection = @import("../../components/cards.zx").Collection;
 
-pub fn Page(ctx: zx.PageContext) zx.Component {
-    const name = ctx.request.param("name") orelse @panic("unreachable?");
+pub fn Page(ctx: zx.PageContext) !zx.Component {
+    const name = ctx.request.param("name") orelse return error.MissingName;
     return (<Collection @allocator={ctx.arena} {name} />);
 }
