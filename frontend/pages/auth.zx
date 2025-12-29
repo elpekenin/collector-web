@@ -4,8 +4,6 @@ const zx = @import("zx");
 
 const backend = @import("backend");
 
-const Error = @import("components/error.zig").Error;
-
 const Action = enum {
     signin,
     login,
@@ -13,39 +11,26 @@ const Action = enum {
 
 const AuthFunction = *const fn (std.mem.Allocator, []const u8, []const u8) anyerror![]const u8;
 
-pub fn page(action: Action, ctx: zx.PageContext) zx.Component {
+pub fn page(action: Action, ctx: zx.PageContext) !zx.Component {
     const action_str = switch (action) {
         .signin => "Sign in",
         .login => "Log in",
     };
 
     if (ctx.request.method == .POST) {
-        const form = ctx.request.formData() catch |err| {
-            return (<Error message="form" {err} />);
-        };
+        const form = try ctx.request.formData();
 
-        const username = form.get("username") orelse {
-            return (<Error message="username" />);
-        };
-
-        const password = form.get("password") orelse {
-            return (<Error message="password" />);
-        };
+        const username = form.get("username") orelse return error.MissingUsername;
+        const password = form.get("password") orelse return error.MissingPasword;
 
         const function: AuthFunction = switch (action) {
             .signin => backend.auth.signin,
             .login => backend.auth.login,
         };
 
-        const token = function(ctx.allocator, username, password) catch |err| {
-            return (<Error message="could not authenticate" {err} />);
-            // TODO:
-            // return (<Error message=`could not {action_str}` {err} />);
-        };
+        const token = try function(ctx.allocator, username, password);
 
-        backend.auth.setCookie(ctx, token) catch |err| {
-            return (<Error message="could not set token" {err} />);
-        };
+        try backend.auth.setCookie(ctx, token);
 
         const message = switch (action) {
             .signin => "Account created",

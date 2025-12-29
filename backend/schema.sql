@@ -29,6 +29,7 @@ CREATE TABLE IF NOT EXISTS "Card" (
     card_id TEXT NOT NULL UNIQUE,
     name TEXT NOT NULL,
     image_url TEXT,
+    release_date INTEGER NOT NULL,
 
     CHECK (card_id <> ''),
     CHECK (name <> '')

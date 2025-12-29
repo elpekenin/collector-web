@@ -18,7 +18,7 @@ fn Link(allocator: zx.Allocator, props: LinkProps) zx.Component {
 const elements: []const LinkProps = &.{
     .{
         .name = "zig",
-        .description = "programming languge",
+        .description = "programming language",
         .link = "",
     },
     .{

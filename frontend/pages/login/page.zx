@@ -2,6 +2,6 @@ const zx = @import("zx");
 
 const auth = @import("../auth.zig");
 
-pub fn Page(ctx: zx.PageContext) zx.Component {
+pub fn Page(ctx: zx.PageContext) !zx.Component {
     return auth.page(.login, ctx);
 }

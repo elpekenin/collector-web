@@ -20,10 +20,10 @@ const main = (args: string[]): number => {
 		return 1;
 	}
 
-	return (
-		Bun.spawn([codespell, ...params], { stdout: "inherit", stderr: "inherit" })
-			.exitCode || 0
-	);
+	return Bun.spawnSync([codespell, "-w", ...params], {
+		stdout: "inherit",
+		stderr: "inherit",
+	}).exitCode;
 };
 
 process.exit(main(process.argv));

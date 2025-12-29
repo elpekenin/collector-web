@@ -4,20 +4,11 @@ const zx = @import("zx");
 
 const backend = @import("backend");
 
-const Error = @import("../components/error.zx").Error;
+pub fn Page(ctx: zx.PageContext) !zx.Component {
+    const token = backend.auth.getCookie(ctx) orelse return error.NotLoggedIn;
 
-pub fn Page(ctx: zx.PageContext) zx.Component {
-    const token = backend.auth.getCookie(ctx) orelse {
-        return (<Error message="not logged in" />);
-    };
-
-    backend.auth.logout(ctx.allocator, token) catch |err| {
-        return (<Error message="could not log out" {err} />);
-    };
-
-    backend.auth.rmCookie(ctx) catch |err| {
-        return (<Error message="could not remove cookie" {err} />);
-    };
+    try backend.auth.logout(ctx.allocator, token);
+    try backend.auth.rmCookie(ctx);
 
     return (
         <>
