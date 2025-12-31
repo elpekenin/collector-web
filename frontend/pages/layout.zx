@@ -5,9 +5,10 @@ const zx = @import("zx");
 const backend = @import("backend");
 
 const auth = @import("../utils/auth.zx");
-const SignInButton = auth.SignInButton;
-const LoginButton = auth.LoginButton;
-pub const AuthForm = auth.Form;
+const auth_utils = @import("../components/auth.zx");
+
+pub const AuthButtons = auth_utils.AuthButtons;
+pub const AuthForm = auth_utils.Form;
 
 pub fn Layout(ctx: zx.LayoutContext, children: zx.Component) zx.Component {
     const appname = "collector";
@@ -41,11 +42,7 @@ pub fn Layout(ctx: zx.LayoutContext, children: zx.Component) zx.Component {
                             <a href="/logout">Log out</a>
                         </>
                     ) else (
-                        <>
-                            <SignInButton />
-                            |
-                            <LoginButton />
-                        </>
+                        <AuthButtons @rendering={.client} />
                     )}
                 </header>
 
@@ -59,6 +56,7 @@ pub fn Layout(ctx: zx.LayoutContext, children: zx.Component) zx.Component {
                 <footer class=`fixed bottom-0 left-0 w-full h-{footer_height} bg-accent2 {common}`>
                     Made with love, by <a href="https://github.com/elpekenin">@elpekenin</a>
                 </footer>
+                <script src="/assets/main.js" />
             </body>
         </html>
     );

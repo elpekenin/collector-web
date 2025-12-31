@@ -65,6 +65,10 @@ pub fn build(b: *std.Build) !void {
                 .input = b.path("frontend/_/styles.css"),
                 .output = b.path("{outdir}/public/styles.css"),
             }),
+            zx_build.plugins.esbuild(b, .{
+                .input = b.path("frontend/main.ts"),
+                .output = b.path("{outdir}/assets/main.js"),
+            }),
         },
         .site = .{
             .path = b.path("frontend"),
