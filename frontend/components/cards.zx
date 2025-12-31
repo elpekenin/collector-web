@@ -4,13 +4,14 @@ const zx = @import("zx");
 
 const backend = @import("backend");
 
-const ImageProps = struct {
-    card: backend.Card,
-    width: []const u8 = "10%",
-    height: []const u8 = "20%",
-};
-
-pub fn Image(allocator: zx.Allocator, props: ImageProps) zx.Component {
+pub fn Image(
+    allocator: zx.Allocator,
+    props: struct {
+        card: backend.Card,
+        width: []const u8 = "10%",
+        height: []const u8 = "20%",
+    },
+) zx.Component {
     const card = props.card;
 
     return (
@@ -28,12 +29,13 @@ pub fn Image(allocator: zx.Allocator, props: ImageProps) zx.Component {
     );
 }
 
-const CollectionProps = struct {
-    user_id: []const u8 = "",
-    name: []const u8,
-};
-
-pub fn Collection(allocator: zx.Allocator, props: CollectionProps) !zx.Component {
+pub fn Collection(
+    allocator: zx.Allocator,
+    props: struct {
+        user_id: []const u8 = "",
+        name: []const u8,
+    },
+) !zx.Component {
     const cards = try backend.Card.list(allocator, props.name);
 
     return (

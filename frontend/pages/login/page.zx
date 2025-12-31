@@ -1,7 +1,11 @@
 const zx = @import("zx");
 
-const auth = @import("../auth.zig");
+const auth = @import("../../utils/auth.zx");
+
+pub const options: zx.PageOptions = .{
+    .methods = &.{ .POST },
+};
 
 pub fn Page(ctx: zx.PageContext) !zx.Component {
-    return auth.page(.login, ctx);
+    return auth.endpoint(.login, ctx);
 }

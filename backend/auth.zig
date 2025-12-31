@@ -17,7 +17,7 @@ const cookie_name = "auth-token";
 
 const UserId = u64;
 
-const User = struct {
+pub const User = struct {
     id: UserId,
     username: []const u8,
 };

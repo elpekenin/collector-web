@@ -8,10 +8,10 @@ const LinkProps = struct {
 
 fn Link(allocator: zx.Allocator, props: LinkProps) zx.Component {
     return (
-        <div @{allocator}>
+        <fragment @{allocator}>
             <a href={props.link}>{props.name}</a>
             ({props.description})
-        </div>
+        </fragment>
     );
 }
 
@@ -36,11 +36,11 @@ const elements: []const LinkProps = &.{
 pub fn Page(ctx: zx.PageContext) zx.Component {
     return (
         <div @allocator={ctx.arena}>
-            Non-exhaustive list of tools/resources used to build this website, thanks to all of you
+            Non-exhaustive list of tools/resources used to build this website. Love you all
             <ul class="list-inside list-disc" role="list">
                 {for (elements) |element| (
                     <li>
-                        <Link name={element.name} description={element.description} link={element.link} />
+                        <Link {..element} />
                     </li>
                 )}
             </ul>

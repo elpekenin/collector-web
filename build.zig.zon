@@ -5,16 +5,16 @@
     .minimum_zig_version = "0.15.2",
     .dependencies = .{
         .fridge = .{
-            .path = "../fridge",
-            // .url = "git+https://github.com/cztomsik/fridge#edf00f4c346bcaf29d354b56f1befd3cf0d1291b",
+            .url = "git+https://github.com/cztomsik/fridge#5b06d09627f4bf6066210a46138f4833777098bf",
+            .hash = "fridge-0.9.5-3GyIipe6AQCJI6OmD4dEQaWYWyc5Kvx5GNPKAP3L-D6l",
         },
         .ptz = .{
             .url = "git+https://github.com/elpekenin/ptz#75f0622fba11e7b7c2c4b5104e5b7b3390b658a9",
             .hash = "ptz-0.0.1-CesFmibxAABzTsoT5jf0m6EPafqp5qtdQF_Yt97RPRwB",
         },
         .zx = .{
-            .url = "git+https://github.com/nurulhudaapon/zx#58303befe14583f6842b7c72dbd493556ef1fce1",
-            .hash = "zx-0.1.0-dev.460-8okzKsn_fQCHo2lYvs42QAIdptqnQSA8zHZCPGOL_6n1",
+            .url = "git+https://github.com/nurulhudaapon/zx#6d974817c0c8c434933f72aa1b454eb5b6283aa4",
+            .hash = "zx-0.1.0-dev.460-8okzKqdyfgAxvbgmrp12lQ9sPuqoVVYAkDkBAhXtqZrL",
         },
     },
     // project not meant to be used as dependency

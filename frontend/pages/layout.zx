@@ -4,6 +4,11 @@ const zx = @import("zx");
 
 const backend = @import("backend");
 
+const auth = @import("../utils/auth.zx");
+const SignInButton = auth.SignInButton;
+const LoginButton = auth.LoginButton;
+const AuthForm = auth.Form;
+
 pub fn Layout(ctx: zx.LayoutContext, children: zx.Component) zx.Component {
     const appname = "collector";
 
@@ -37,12 +42,15 @@ pub fn Layout(ctx: zx.LayoutContext, children: zx.Component) zx.Component {
                         </>
                     ) else (
                         <>
-                            <a href="/login">Log in</a>
+                            <SignInButton />
                             |
-                            <a href="/signin">Sign in</a>
+                            <LoginButton />
                         </>
                     )}
                 </header>
+
+                <!-- Hidden until button pressed -->
+                <AuthForm @rendering={.client} />
 
                 <main class=`w-full h-full pt-{header_height} pb-{footer_height} {common}`>
                     {children}

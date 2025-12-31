@@ -1,0 +1,150 @@
+const std = @import("std");
+const builtin = @import("builtin");
+
+const zx = @import("zx");
+
+const backend = @import("backend");
+
+const id = "auth-dialog";
+
+// TODO: back to `null` with a "close" button or something
+var selection: ?Action = null;
+
+pub const Action = enum {
+    signin,
+    login,
+
+    fn endpoint(action: Action) []const u8 {
+        return switch (action) {
+            .signin => "/signin",
+            .login => "/login",
+        };
+    }
+
+    fn text(action: Action) []const u8 {
+        return switch (action) {
+            .signin => "Sign in",
+            .login => "Log in",
+        };
+    }
+
+    const AuthHandler = *const fn (std.mem.Allocator, []const u8, []const u8) anyerror![]const u8;
+
+    fn handler(action: Action) AuthHandler {
+        return switch (action) {
+            .signin => backend.auth.signin,
+            .login => backend.auth.login,
+        };
+    }
+
+    fn success(action: Action) []const u8 {
+        return switch (action) {
+            .signin => "Account created",
+            .login => "Logged in",
+        };
+    }
+};
+
+fn showForm() void {
+    // function does nothing unless compiling for wasm-freestanding
+    // that is: code only runs on client side
+    if (builtin.os.tag != .freestanding) {
+        return;
+    }
+
+    const allocator = std.heap.wasm_allocator;
+
+    const document: zx.Client.bom.Document = .init(allocator);
+    const dialog = document.getElementById(id) catch return;
+
+    dialog.ref.call(void, "showModal", .{}) catch return;
+}
+
+fn setSignin(_: zx.EventContext) void {
+    std.log.info("signin", .{});
+    selection = .signin;
+    showForm();
+}
+
+fn setLogin(_: zx.EventContext) void {
+    std.log.info("login", .{});
+    selection = .login;
+    showForm();
+}
+
+pub fn SignInButton(allocator: zx.Allocator) zx.Component {
+    return (
+        <button @{allocator} onclick={setSignin}>Sign in</button>
+    );
+}
+
+pub fn LoginButton(allocator: zx.Allocator) zx.Component {
+    return (
+        <button @{allocator} onclick={setLogin}>Log in</button>
+    );
+}
+
+pub fn Form(allocator: zx.Allocator) zx.Component {
+    const action = selection orelse {
+        // form is still to be open, no content
+        return (
+            <frament @{allocator}>
+            </fragment>
+        );
+    };
+
+    return (
+        <fragment @{allocator}>
+            <form action={action.endpoint()} method="post" class="bg-secondary text-primary rounded-lg shadow-xl p-6 min-w-75 max-w-[95vw]">
+                <fieldset>
+                    <legend>Username</legend>
+                    <input id="username" name="username" type="text" required />
+                </fieldset>
+
+                <fieldset>
+                    <legend>Password</legend>
+                    <input id="password" name="password" type="password" required />
+                </fieldset>
+
+                <input id="referrer" name="referrer" type="hidden" value="" />
+
+                <button type="submit" class="bg-accent3 rounded-3xl px-4 py-2">
+                    {action.text()}
+                </button>
+            </form>
+
+            <script @escaping={.none}>
+                /**
+                 * Fill hidden input for "where did we come from"
+                 */
+                document
+                    .getElementById('referrer')
+                    .value = location.pathname || location.href
+            </script>
+        </fragment>
+    );
+}
+
+pub fn endpoint(action: Action, ctx: zx.PageContext) !zx.Component {
+    const form = try ctx.request.formData();
+
+    const username = form.get("username") orelse return error.MissingUsername;
+    const password = form.get("password") orelse return error.MissingPasword;
+    const referrer = form.get("referrer") orelse return error.MissingReferrer;
+
+    const handler = action.handler();
+    const token = try handler(ctx.allocator, username, password);
+
+    try backend.auth.setCookie(ctx, token);
+
+    // redirect back into the page where log/sign in button was clicked
+    ctx.response.setStatus(.see_other);
+    ctx.response.header("Location", referrer);
+
+    // TODO: redirect not working
+    return (
+        <>
+            {action.success()}
+        </>
+    );
+}

@@ -1,33 +1,36 @@
 // TODO: stack trace?
 
 const std = @import("std");
+const Allocator = std.mem.Allocator;
 
 const zx = @import("zx");
 
-fn readable(allocator: std.mem.Allocator, err: anyerror) ![]const u8 {
-    const raw: []const u8 = @errorName(err);
+fn stackTrace(allocator: std.mem.Allocator) ![]const u8 {
+    var text: std.Io.Writer.Allocating = .init(allocator);
+    defer text.deinit();
 
-    var transformed: std.ArrayList(u8) = try .initCapacity(allocator, raw.len * 2);
-    defer transformed.deinit(allocator);
-
-    for (raw) |c| {
-        if (std.ascii.isUpper(c)) {
-            transformed.appendAssumeCapacity(' ');
-        }
-
-        transformed.appendAssumeCapacity(c);
+    if (@errorReturnTrace()) |trace| {
+         try std.debug.writeStackTrace(
+            trace.*,
+            &text.writer,
+            try std.debug.getSelfDebugInfo(),
+            .no_color
+        );
     }
 
-    return transformed.toOwnedSlice(allocator);
+    return text.toOwnedSlice();
 }
 
 pub fn Error(ctx: zx.ErrorContext) zx.Component {
-    const err = readable(ctx.err) catch @errorName(ctx.err);
+    const trace = stackTrace(ctx.arena) catch "";
 
     return (
-        <div @allocator={ctx.arena}>
-            <p>Internal server error: {err}</p>
-            <a href=`{ctx.request.url.path}`>Reload page</a>
+        <div @allocator={ctx.arena} class="text-xl">
+            <span class="text-accent3">Internal server error: {@errorName(ctx.err)}</span>
+
+            <pre>{trace}</pre>
+
+            <a href={ctx.request.url.path}>Reload page</a>
         </div>
     );
 }
