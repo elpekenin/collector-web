@@ -1,4 +1,5 @@
 const std = @import("std");
+const builtin = @import("builtin");
 
 const zx = @import("zx");
 const meta = @import("zx_meta").meta;
@@ -11,6 +12,8 @@ const config: zx.App.Config = .{
 };
 
 pub fn main() !void {
+    if (builtin.os.tag == .freestanding) return;
+
     var gpa: std.heap.DebugAllocator(.{}) = .{};
     defer _ = gpa.deinit();
 
@@ -23,4 +26,26 @@ pub fn main() !void {
 
     app.info();
     try app.start();
+}
+
+pub var client = zx.Client.init(
+    if (builtin.os.tag == .freestanding) std.heap.wasm_allocator else std.heap.page_allocator,
+    .{ .components = &@import("zx_components").components },
+);
+
+export fn mainClient() void {
+    if (builtin.os.tag != .freestanding) return;
+    client.info();
+    client.renderAll();
+}
+
+export fn handleEvent(velement_id: u64, event_type_id: u8, event_id: u64) void {
+    if (builtin.os.tag != .freestanding) return;
+
+    const event_type: zx.Client.EventType = @enumFromInt(event_type_id);
+    const handled = client.dispatchEvent(velement_id, event_type, event_id);
+
+    if (handled) {
+        client.renderAll();
+    }
 }

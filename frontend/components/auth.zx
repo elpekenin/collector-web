@@ -1,0 +1,100 @@
+const std = @import("std");
+const builtin = @import("builtin");
+
+const zx = @import("zx");
+const auth_utils = @import("../utils/auth.zx");
+const auth = @import("../utils/auth.zx");
+
+const id = "auth-dialog";
+
+var selection: ?auth_utils.Action = null;
+
+fn showForm() void {
+    // function does nothing unless compiling for wasm-freestanding
+    // that is: code only runs on client side
+    if (builtin.os.tag != .freestanding) {
+        return;
+    }
+
+    const allocator = std.heap.wasm_allocator;
+    const js = zx.Client.js;
+
+    const document: zx.Client.bom.Document = .init(allocator);
+    const dialog = document.getElementById(id) catch return;
+
+    // Set the referrer hidden field to current pathname
+    if (document.getElementById("referrer") catch null) |referrer| {
+        const location: js.Object = js.global.get(js.Object, "location") catch return;
+        const pathname = location.getAlloc(js.String, allocator, "pathname") catch return;
+        referrer.ref.set("value", js.string(pathname)) catch return;
+    }
+
+    dialog.ref.call(void, "showModal", .{}) catch return;
+}
+
+fn setSignin(_: zx.EventContext) void {
+    selection = .signin;
+    showForm();
+}
+
+fn setLogin(_: zx.EventContext) void {
+    selection = .login;
+    showForm();
+}
+
+pub fn AuthButtons(allocator: zx.Allocator) zx.Component {
+    return (
+        <div @{allocator}>
+            <button onclick={setLogin}>Log in</button>
+            |
+            <button onclick={setSignin}>Sign in</button>
+        </div>
+    );
+}
+
+pub fn Form(allocator: zx.Allocator) zx.Component {
+    // Always render the dialog and form so getElementById can find it
+    // Use selection or default to .login (will be updated when button is clicked)
+    const action = selection orelse .login;
+
+    return (
+        <dialog @{allocator} {id} class="backdrop:bg-black/50 rounded-lg">
+            <form @{allocator} action={action.endpoint()} method="post" class="bg-secondary text-primary rounded-lg shadow-xl p-6 min-w-75 max-w-[95vw]">
+                <fieldset>
+                    <legend>Username</legend>
+                    <input id="username" name="username" type="text" required />
+                </fieldset>
+
+                <fieldset>
+                    <legend>Password</legend>
+                    <input id="password" name="password" type="password" required />
+                </fieldset>
+
+                <input id="referrer" name="referrer" type="hidden" value="" />
+
+                <div class="flex gap-2 mt-4">
+                    <button type="submit" class="bg-accent3 rounded-3xl px-4 py-2">
+                        {action.text()}
+                    </button>
+                    <button type="button" class="bg-gray-500 rounded-3xl px-4 py-2" onclick={closeDialog}>
+                        Cancel
+                    </button>
+                </div>
+            </form>
+        </dialog>
+    );
+}
+
+fn closeDialog(_: zx.EventContext) void {
+    if (builtin.os.tag != .freestanding) {
+        return;
+    }
+
+    const allocator = std.heap.wasm_allocator;
+
+    const document: zx.Client.bom.Document = .init(allocator);
+    const dialog = document.getElementById(id) catch return;
+
+    dialog.ref.call(void, "close", .{}) catch return;
+    selection = null;
+}
