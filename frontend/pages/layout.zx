@@ -7,7 +7,7 @@ const backend = @import("backend");
 const auth = @import("../utils/auth.zx");
 const SignInButton = auth.SignInButton;
 const LoginButton = auth.LoginButton;
-const AuthForm = auth.Form;
+pub const AuthForm = auth.Form;
 
 pub fn Layout(ctx: zx.LayoutContext, children: zx.Component) zx.Component {
     const appname = "collector";

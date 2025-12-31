@@ -88,7 +88,7 @@ pub fn Form(allocator: zx.Allocator) zx.Component {
     const action = selection orelse {
         // form is still to be open, no content
         return (
-            <frament @{allocator}>
+            <fragment @{allocator}>
             </fragment>
         );
     };

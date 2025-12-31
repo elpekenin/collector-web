@@ -69,6 +69,9 @@ pub fn build(b: *std.Build) !void {
         .site = .{
             .path = b.path("frontend"),
         },
+        .experimental = .{
+            .enabled_csr = true,
+        },
     };
 
     _ = try zx_build.init(b, exe, zx_options);
