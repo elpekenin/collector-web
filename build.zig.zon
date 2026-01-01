@@ -9,12 +9,12 @@
             .hash = "fridge-0.9.5-3GyIipe6AQCJI6OmD4dEQaWYWyc5Kvx5GNPKAP3L-D6l",
         },
         .ptz = .{
-            .url = "git+https://github.com/elpekenin/ptz#75f0622fba11e7b7c2c4b5104e5b7b3390b658a9",
-            .hash = "ptz-0.0.1-CesFmibxAABzTsoT5jf0m6EPafqp5qtdQF_Yt97RPRwB",
+            .url = "git+https://github.com/elpekenin/ptz#d25c7b4b3b5ce722fde258479ab68aa61dda7664",
+            .hash = "ptz-0.0.1-CesFmnTxAAAdrUF7So1MExNPnHUnm2ImkYNUZGXNxlQp",
         },
         .zx = .{
-            .url = "git+https://github.com/nurulhudaapon/zx#78752556b18e66320dec28473268f3bed108b201",
-            .hash = "zx-0.1.0-dev.508-8okzKpx0fgBIawTqvRiT-RA96go56ceCZC5HNzD3iGQ9",
+            .url = "git+https://github.com/nurulhudaapon/zx#61276e394ebe3e51ffbcc56084cb5b9f03555141",
+            .hash = "zx-0.1.0-dev.508-8okzKkrKfgB2INceBJEvsN-k4A9Wm9dYfX1jE1uzji-B",
         },
     },
     // project not meant to be used as dependency

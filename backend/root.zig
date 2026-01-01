@@ -10,8 +10,10 @@ const std = @import("std");
 pub const auth = @import("auth.zig");
 pub const collection = @import("collection.zig");
 pub const database = @import("database.zig");
+pub const fetch = @import("fetch.zig");
 pub const Card = @import("Card.zig");
 
 pub fn init(allocator: std.mem.Allocator) !void {
     try database.init(allocator);
+    try fetch.init(allocator);
 }

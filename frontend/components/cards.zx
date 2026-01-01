@@ -4,6 +4,7 @@ const zx = @import("zx");
 
 const backend = @import("backend");
 
+// TODO: details on click?
 pub fn Image(
     allocator: zx.Allocator,
     props: struct {
@@ -36,7 +37,7 @@ pub fn Collection(
         name: []const u8,
     },
 ) !zx.Component {
-    const cards = try backend.Card.list(allocator, props.name);
+    const cards = try backend.Card.all(allocator, props.name);
 
     return (
         <div @{allocator}>
