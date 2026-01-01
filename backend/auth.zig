@@ -13,8 +13,6 @@ const salt_len = 8;
 const hashed_len = 128;
 const token_len = 32;
 
-const cookie_name = "auth-token";
-
 const UserId = u64;
 
 pub const User = struct {
@@ -132,22 +130,4 @@ pub fn getUser(allocator: Allocator, token_value: []const u8) !?User {
     ) orelse return error.InvalidToken;
 
     return session.find(User, token.id);
-}
-
-pub fn getCookie(ctx: zx.PageContext) ?[]const u8 {
-    return ctx.request.cookies().get(cookie_name);
-}
-
-pub fn setCookie(ctx: zx.PageContext, token: []const u8) !void {
-    return ctx.response.setCookie(cookie_name, token, .{
-        .max_age = 3600,
-        .secure = true,
-        .same_site = .strict,
-    });
-}
-
-pub fn rmCookie(ctx: zx.PageContext) !void {
-    return ctx.response.setCookie(cookie_name, "", .{
-        .max_age = 1,
-    });
 }

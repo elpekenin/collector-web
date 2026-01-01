@@ -4,13 +4,34 @@ const builtin = @import("builtin");
 const zx = @import("zx");
 const js = zx.Client.js;
 
-const auth = @import("../utils/auth.zx");
-const html = @import("../utils/html.zig");
+const utils = @import("../utils.zig");
 
 const dialog_id = "auth-dialog";
 const referrer_id = "referrer-field";
 
-var selection: ?auth.Action = null;
+const Action = enum {
+    unset,
+    signin,
+    login,
+
+    fn endpoint(self: Action) []const u8 {
+        return switch (self) {
+            .unset => "send bug report if you see this",
+            .signin => "/signin",
+            .login => "/login",
+        };
+    }
+
+    fn text(self: Action) []const u8 {
+        return switch (self) {
+            .unset => "send bug report if you see this",
+            .signin => "Sign in",
+            .login => "Log in",
+        };
+    }
+};
+
+var action: Action = .unset;
 
 fn showForm() void {
     // function does nothing unless compiling for wasm-freestanding
@@ -21,12 +42,12 @@ fn showForm() void {
 
     const allocator = std.heap.wasm_allocator;
 
-    if (html.getElementById(allocator, dialog_id)) |dialog| {
+    if (utils.html.getElementById(allocator, dialog_id)) |dialog| {
         dialog.ref.call(void, "showModal", .{}) catch {};
     }
 
     // Set the referrer hidden field to current pathname
-    if (html.getElementById(allocator, "referrer")) |referrer| {
+    if (utils.html.getElementById(allocator, "referrer")) |referrer| {
         if (js.global.get(js.Object, "location") catch null) |location| {
             if (location.getAlloc(js.String, allocator, "pathname") catch null) |pathname| {
                 referrer.ref.set("value", js.string(pathname)) catch {};
@@ -36,12 +57,12 @@ fn showForm() void {
 }
 
 fn openSignin(_: zx.EventContext) void {
-    selection = .signin;
+    action = .signin;
     showForm();
 }
 
 fn openLogin(_: zx.EventContext) void {
-    selection = .login;
+    action = .login;
     showForm();
 }
 
@@ -50,11 +71,11 @@ fn close(_: zx.EventContext) void {
         return;
     }
 
-    if (html.getElementById(std.heap.wasm_allocator, dialog_id)) |dialog| {
+    if (utils.html.getElementById(std.heap.wasm_allocator, dialog_id)) |dialog| {
         dialog.ref.call(void, "close", .{}) catch {};
     }
 
-    selection = null;
+    action = .unset;
 }
 
 pub fn Buttons(allocator: zx.Allocator) zx.Component {
@@ -68,10 +89,6 @@ pub fn Buttons(allocator: zx.Allocator) zx.Component {
 }
 
 pub fn Form(allocator: zx.Allocator) zx.Component {
-    // Always render the dialog and form so getElementById can find it
-    // Use selection or default to .login (will be updated when button is clicked)
-    const action = selection orelse .login;
-
     return (
         <dialog @{allocator} id={dialog_id} class="backdrop:bg-black/50 rounded-lg">
             <form action={action.endpoint()} method="post" class="bg-secondary text-primary rounded-lg shadow-xl p-6 min-w-75 max-w-[95vw]">

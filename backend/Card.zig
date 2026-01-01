@@ -5,7 +5,7 @@ const ptz = @import("ptz");
 const sdk = ptz.Sdk(.en);
 
 const database = @import("database.zig");
-const util = @import("util.zig");
+const utils = @import("utils.zig");
 
 const Card = @This();
 
@@ -24,12 +24,12 @@ pub const Variant = struct {
     stamps: ?[]const []const u8 = null,
     foil: ?[]const u8 = null,
 
-    pub fn insert(session: *database.Session, variant: util.Omit(Variant, .id)) !void {
+    pub fn insert(session: *database.Session, variant: utils.Omit(Variant, .id)) !void {
         _ = try session.insert(Variant, variant);
     }
 };
 
-pub fn insert(session: *database.Session, card: util.Omit(Card, .id)) !void {
+pub fn insert(session: *database.Session, card: utils.Omit(Card, .id)) !void {
     _ = session.insert(Card, card) catch |err| switch (err) {
         // card existed in DB already, lets not error out
         error.UniqueViolation => {},

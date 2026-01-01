@@ -1,7 +1,7 @@
 const std = @import("std");
 
-const zx_build = @import("zx");
-const ZxOptions = zx_build.ZxInitOptions;
+const zx = @import("zx");
+const ZxOptions = zx.ZxInitOptions;
 
 pub fn build(b: *std.Build) !void {
     // options
@@ -17,10 +17,6 @@ pub fn build(b: *std.Build) !void {
         .target = target,
         .optimize = optimize,
     });
-    const zx = b.dependency("zx", .{
-        .target = target,
-        .optimize = optimize,
-    });
 
     // backend
     const backend = b.addModule("backend", .{
@@ -30,7 +26,6 @@ pub fn build(b: *std.Build) !void {
         .imports = &.{
             .{ .name = "fridge", .module = fridge.module("fridge") },
             .{ .name = "ptz", .module = ptz.module("ptz") },
-            .{ .name = "zx", .module = zx.module("zx") },
         },
     });
 
@@ -60,12 +55,12 @@ pub fn build(b: *std.Build) !void {
             },
         },
         .plugins = &.{
-            zx_build.plugins.tailwind(b, .{
+            zx.plugins.tailwind(b, .{
                 .bin = b.path("node_modules/.bin/tailwindcss"),
                 .input = b.path("frontend/_/styles.css"),
                 .output = b.path("{outdir}/public/styles.css"),
             }),
-            zx_build.plugins.esbuild(b, .{
+            zx.plugins.esbuild(b, .{
                 .bin = b.path("node_modules/.bin/esbuild"),
                 .input = b.path("frontend/main.ts"),
                 .output = b.path("{outdir}/assets/main.js"),
@@ -79,7 +74,7 @@ pub fn build(b: *std.Build) !void {
         },
     };
 
-    _ = try zx_build.init(b, exe, zx_options);
+    _ = try zx.init(b, exe, zx_options);
 
     // tests
     const tests = b.step("test", "run tests");

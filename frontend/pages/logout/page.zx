@@ -4,15 +4,17 @@ const zx = @import("zx");
 
 const backend = @import("backend");
 
+const utils = @import("../../utils.zig");
+
 pub const options: zx.PageOptions = .{
     .methods = &.{ .GET, .POST },
 };
 
 pub fn Page(ctx: zx.PageContext) !zx.Component {
-    const token = backend.auth.getCookie(ctx) orelse return error.NotLoggedIn;
+    const token = utils.auth.getCookie(ctx.request) orelse return error.NotLoggedIn;
 
+    try utils.auth.rmCookie(ctx.response);
     try backend.auth.logout(ctx.allocator, token);
-    try backend.auth.rmCookie(ctx);
 
     return (
         <>

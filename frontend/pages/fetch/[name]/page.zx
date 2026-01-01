@@ -1,15 +1,34 @@
+const std = @import("std");
+
 const zx = @import("zx");
 
 const backend = @import("backend");
 
+pub const options: zx.PageOptions = .{
+    .caching = .{ .seconds = 10 },
+    .streaming = true,
+};
+
+fn Fetch(
+    allocator: std.mem.Allocator,
+    props: struct {
+        name: []const u8,
+    },
+) !zx.Component {
+    const stats = try backend.Card.fetch(allocator, props.name);
+    return (
+        <>
+            Found {stats.card_count} cards in {stats.ms_elapsed}ms
+        </>
+    );
+}
+
 pub fn Page(ctx: zx.PageContext) !zx.Component {
     const name = ctx.request.param("name") orelse return error.MissingName;
 
-    const stats = try backend.Card.fetch(ctx.arena, name);
-
     return (
-        <div @allocator={ctx.arena}>
-            Found {stats.card_count} cards in {stats.ms_elapsed}ms
+        <div @allocator={ctx.arena} @async={.stream} @fallback={(<>Loading ...</>)}>
+            <Fetch {name} />
         </div>
     );
 }
