@@ -2,7 +2,7 @@ const zx = @import("zx");
 
 pub fn NotFound(ctx: zx.NotFoundContext) zx.Component {
     return (
-        <div @allocator={ctx.allocator}>
+        <div @allocator={ctx.arena}>
             <p>Oops, page could not be found</p>
         </div>
     );

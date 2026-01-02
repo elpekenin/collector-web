@@ -7,38 +7,33 @@ const js = zx.Client.js;
 const utils = @import("../utils.zig");
 
 const dialog_id = "auth-dialog";
+const form_id = "auth-form";
 const referrer_id = "referrer-field";
+const submit_id = "submit-button";
 
 const Action = enum {
-    unset,
     signin,
     login,
 
-    fn endpoint(self: Action) []const u8 {
-        return switch (self) {
-            .unset => "send bug report if you see this",
+    fn endpoint(action: Action) []const u8 {
+        return switch (action) {
             .signin => "/signin",
             .login => "/login",
         };
     }
 
-    fn text(self: Action) []const u8 {
-        return switch (self) {
-            .unset => "send bug report if you see this",
+    fn text(action: Action) []const u8 {
+        return switch (action) {
             .signin => "Sign in",
             .login => "Log in",
         };
     }
 };
 
-var action: Action = .unset;
-
-fn showForm() void {
+fn showForm(action: Action) void {
     // function does nothing unless compiling for wasm-freestanding
     // that is: code only runs on client side
-    if (builtin.os.tag != .freestanding) {
-        return;
-    }
+    if (builtin.os.tag != .freestanding) @panic("intended for CSR");
 
     const allocator = std.heap.wasm_allocator;
 
@@ -46,7 +41,10 @@ fn showForm() void {
         dialog.ref.call(void, "showModal", .{}) catch {};
     }
 
-    // Set the referrer hidden field to current pathname
+    if (utils.html.getElementById(allocator, form_id)) |form| {
+        form.ref.set("action", js.string(action.endpoint())) catch {};
+    }
+
     if (utils.html.getElementById(allocator, "referrer")) |referrer| {
         if (js.global.get(js.Object, "location") catch null) |location| {
             if (location.getAlloc(js.String, allocator, "pathname") catch null) |pathname| {
@@ -54,44 +52,47 @@ fn showForm() void {
             }
         }
     }
+
+    if (utils.html.getElementById(allocator, submit_id)) |submit| {
+        submit.ref.set("innerText", js.string(action.text())) catch {};
+    }
+
 }
 
 fn openSignin(_: zx.EventContext) void {
-    action = .signin;
-    showForm();
+    showForm(.signin);
 }
 
 fn openLogin(_: zx.EventContext) void {
-    action = .login;
-    showForm();
+    showForm(.login);
 }
 
 fn close(_: zx.EventContext) void {
-    if (builtin.os.tag != .freestanding) {
-        return;
-    }
+    if (builtin.os.tag != .freestanding) @panic("intended for CSR");
 
     if (utils.html.getElementById(std.heap.wasm_allocator, dialog_id)) |dialog| {
         dialog.ref.call(void, "close", .{}) catch {};
     }
-
-    action = .unset;
 }
 
 pub fn Buttons(allocator: zx.Allocator) zx.Component {
+    if (builtin.os.tag != .freestanding) @panic("intended for CSR");
+
+    const class = "text-primary bg-secondary rounded-md";
     return (
         <div @{allocator}>
-            <button onclick={openLogin}>Log in</button>
-            |
-            <button onclick={openSignin}>Sign in</button>
+            <button class=`{class} mr-2` onclick={openLogin}>Log in</button>
+            <button {class} onclick={openSignin}>Sign in</button>
         </div>
     );
 }
 
 pub fn Form(allocator: zx.Allocator) zx.Component {
+    if (builtin.os.tag != .freestanding) @panic("intended for CSR");
+
     return (
         <dialog @{allocator} id={dialog_id} class="backdrop:bg-black/50 rounded-lg">
-            <form action={action.endpoint()} method="post" class="bg-secondary text-primary rounded-lg shadow-xl p-6 min-w-75 max-w-[95vw]">
+            <form id={form_id} action="/404" method="post" class="bg-secondary text-primary rounded-lg shadow-xl p-6 min-w-75 max-w-[95vw]">
                 <fieldset>
                     <legend>Username</legend>
                     <input id="username" name="username" type="text" required />
@@ -105,8 +106,8 @@ pub fn Form(allocator: zx.Allocator) zx.Component {
                 <input id={referrer_id} name="referrer" type="hidden" value="" />
 
                 <div class="flex gap-2 mt-4">
-                    <button type="submit" class="bg-accent3 rounded-3xl px-4 py-2">
-                        {action.text()}
+                    <button id={submit_id} type="submit" class="bg-accent3 rounded-3xl px-4 py-2">
+                        Send bug report if you see this
                     </button>
 
                     <button type="button" class="bg-gray-500 rounded-3xl px-4 py-2" onclick={close}>

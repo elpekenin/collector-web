@@ -11,7 +11,7 @@ pub const options: zx.PageOptions = .{
 pub fn Page(ctx: zx.PageContext) !zx.Component {
     const auth_data = try utils.auth.data(ctx.request);
 
-    const token = try backend.auth.signin(ctx.allocator, auth_data.username, auth_data.password);
+    const token = try backend.auth.signin(ctx.arena, auth_data.username, auth_data.password);
     try utils.auth.setCookie(ctx.response, token);
 
     utils.redirectTo(ctx.response, auth_data.referrer);
