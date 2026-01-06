@@ -5,7 +5,7 @@ const js = zx.Client.js;
 
 const api = @import("api");
 
-const utils = @import("../utils.zig");
+const wasm = @import("../wasm.zig");
 
 const dialog_id = "auth-dialog";
 const submit_id = "submit-button";
@@ -24,23 +24,23 @@ var action: ?Action = null;
 var user_data: ?UserData = null;
 
 fn showForm() void {
-    const allocator = std.heap.wasm_allocator;
-
     const a = action orelse {
-        utils.js.log(.{ js.string("action is null") }) catch {};
+        wasm.js.log(.{ js.string("action is null") }) catch {};
         return;
     };
 
-    if (utils.html.getElementById(allocator, dialog_id)) |dialog| {
-        dialog.ref.call(void, "showModal", .{}) catch return;
+    if (wasm.html.getElementById(dialog_id)) |dialog| {
+        defer dialog.deinit();
+        dialog.call(void, "showModal", .{}) catch return;
     }
 
-    if (utils.html.getElementById(allocator, submit_id)) |submit| {
+    if (wasm.html.getElementById(submit_id)) |submit| {
+        defer submit.deinit();
         const text = switch (a) {
             .signin => "Sign in",
             .login => "Log in",
         };
-        submit.ref.set("innerText", js.string(text)) catch return;
+        submit.set("innerText", js.string(text)) catch return;
     }
 }
 
@@ -55,13 +55,11 @@ fn openLogin(_: zx.EventContext) void {
 }
 
 fn inCallback(response: api.signin.Output) !void {
-    const allocator = std.heap.wasm_allocator;
+    const username = try wasm.allocator.dupe(u8, response.username);
+    errdefer wasm.allocator.free(username);
 
-    const username = try allocator.dupe(u8, response.username);
-    errdefer allocator.free(username);
-
-    const token = try allocator.dupe(u8, response.token);
-    errdefer allocator.free(token);
+    const token = try wasm.allocator.dupe(u8, response.token);
+    errdefer wasm.allocator.free(token);
 
     user_data = .{
         .username = username,
@@ -70,26 +68,31 @@ fn inCallback(response: api.signin.Output) !void {
 }
 
 fn authenticate(_: zx.EventContext) void {
-    const allocator = std.heap.wasm_allocator;
-
     const a = action orelse {
-        utils.js.log(.{ js.string("action is null") }) catch {};
+        wasm.js.log(.{ js.string("action is null") }) catch {};
         return;
     };
 
-    const location = js.global.get(js.Object, "location") catch return;
-    const referrer = location.getAlloc(js.String, allocator, "pathname") catch return;
+    const location: js.Object = js.global.get(js.Object, "location") catch return;
+    defer location.deinit();
 
-    const username_input = utils.html.getElementById(allocator, "username") orelse return;
-    const password_input = utils.html.getElementById(allocator, "password") orelse return;
+    const referrer: []const u8 = location.getAlloc(js.String, wasm.allocator, "pathname") catch return;
+    defer wasm.allocator.free(referrer);
 
-    const username = username_input.ref.getAlloc(js.String, allocator, "value") catch return;
-    const password = password_input.ref.getAlloc(js.String, allocator, "value") catch return;
+    const username_input: js.Object = wasm.html.getElementById("username") orelse return;
+    defer username_input.deinit();
+    const username: []const u8 = username_input.getAlloc(js.String, wasm.allocator, "value") catch return;
+    defer wasm.allocator.free(username);
+
+    const password_input: js.Object = wasm.html.getElementById("password") orelse return;
+    defer password_input.deinit();
+    const password: []const u8 = password_input.getAlloc(js.String, wasm.allocator, "value") catch return;
+    defer wasm.allocator.free(password);
 
     switch (a) {
-        .signin => utils.api.execute(
+        .signin => wasm.api.execute(
             api.signin,
-            allocator,
+            wasm.allocator,
             "/api/signin",
             inCallback,
             .{
@@ -98,9 +101,9 @@ fn authenticate(_: zx.EventContext) void {
                 .referrer = referrer,
             },
         ) catch return,
-        .login => utils.api.execute(
+        .login => wasm.api.execute(
             api.login,
-            allocator,
+            wasm.allocator,
             "/api/login",
             inCallback,
             .{
@@ -114,59 +117,56 @@ fn authenticate(_: zx.EventContext) void {
 
 fn outCallback(response: api.logout.Output) !void {
     if (response.ok != 1) {
-        utils.js.log(.{ js.string("API's ok field should always be 1") }) catch {};
+        wasm.js.log(.{ js.string("API's ok field should always be 1") }) catch {};
         return;
     }
 
     if (user_data) |data| {
-        const allocator = std.heap.wasm_allocator;
-
-        allocator.free(data.username);
-        allocator.free(data.token);
+        wasm.allocator.free(data.username);
+        wasm.allocator.free(data.token);
     }
 
     user_data = null;
 }
 
 fn logout(_: zx.EventContext) void {
-    const allocator = std.heap.wasm_allocator;
-
     const token = if (user_data) |data| data.token else {
-        utils.js.log(.{ js.string("user_data is null") }) catch {};
+        wasm.js.log(.{ js.string("user_data is null") }) catch {};
         return;
     };
 
-    utils.api.execute(
+    wasm.api.execute(
         api.logout,
-        allocator,
+        wasm.allocator,
         "/api/logout",
         outCallback,
         .{
             .token = token,
         },
-    ) catch return;
+    ) catch {};
 }
 
 fn closeForm(_: zx.EventContext) void {
     action = null;
 
-    const allocator = std.heap.wasm_allocator;
-
-    if (utils.html.getElementById(allocator, dialog_id)) |dialog| {
-        dialog.ref.call(void, "close", .{}) catch {};
+    if (wasm.html.getElementById(dialog_id)) |dialog| {
+        defer dialog.deinit();
+        dialog.call(void, "close", .{}) catch {};
     }
 
-    if (utils.html.getElementById(allocator, "username")) |username_input| {
-        username_input.ref.set("value", js.string("")) catch {};
+    if (wasm.html.getElementById("username")) |username_input| {
+        defer username_input.deinit();
+        username_input.set("value", js.string("")) catch {};
     }
 
-    if (utils.html.getElementById(allocator, "password")) |password_input| {
-        password_input.ref.set("value", js.string("")) catch {};
+    if (wasm.html.getElementById("password")) |password_input| {
+        defer password_input.deinit();
+        password_input.set("value", js.string("")) catch {};
     }
 }
 
 pub fn Buttons(allocator: zx.Allocator) zx.Component {
-    if (!utils.inClient()) {
+    if (!wasm.inClient()) {
         return (<></>);
     }
 
@@ -190,7 +190,7 @@ pub fn Buttons(allocator: zx.Allocator) zx.Component {
 }
 
 pub fn Form(allocator: zx.Allocator) zx.Component {
-    if (!utils.inClient()) {
+    if (!wasm.inClient()) {
         return (<></>);
     }
 

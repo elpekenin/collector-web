@@ -5,7 +5,7 @@ const zx = @import("zx");
 const backend = @import("backend");
 
 const auth = @import("../components/auth.zx");
-const utils = @import("../utils.zig");
+const wasm = @import("../wasm.zig");
 
 // zx's component system will import these from here
 // because of using them with `@client={.rendering}`
@@ -19,7 +19,7 @@ const header_height = 16;
 const footer_height = 16;
 
 pub fn Layout(ctx: zx.LayoutContext, children: zx.Component) zx.Component {
-    if (utils.routing.isApi(ctx.request.url)) {
+    if (wasm.routing.isApi(ctx.request.url)) {
         return (
             <>
                 {children}

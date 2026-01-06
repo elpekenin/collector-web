@@ -6,6 +6,8 @@ const builtin = @import("builtin");
 const zx = @import("zx");
 const meta = @import("zx_meta").meta;
 
+const wasm = @import("wasm.zig");
+
 pub const std_options: std.Options = .{
     .log_scope_levels = &.{
         .{
@@ -40,7 +42,7 @@ pub fn main() !void {
 }
 
 pub var client = zx.Client.init(
-    if (builtin.os.tag == .freestanding) std.heap.wasm_allocator else std.heap.page_allocator,
+    wasm.allocator,
     .{ .components = &@import("zx_components").components },
 );
 

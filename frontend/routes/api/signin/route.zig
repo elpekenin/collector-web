@@ -3,12 +3,12 @@ const zx = @import("zx");
 const api = @import("api");
 const backend = @import("backend");
 
-const utils = @import("../../../utils.zig");
+const wasm = @import("../../../wasm.zig");
 
 pub fn POST(ctx: zx.RouteContext) !void {
-    if (utils.api.getInput(api.signin, ctx)) |input| {
+    if (wasm.api.getInput(api.signin, ctx)) |input| {
         defer input.deinit();
-        try utils.api.writeOutput(
+        try wasm.api.writeOutput(
             api.signin,
             ctx,
             backend.auth.signin(
@@ -18,6 +18,6 @@ pub fn POST(ctx: zx.RouteContext) !void {
             ),
         );
     } else |err| {
-        try utils.api.writeError(ctx, err);
+        try wasm.api.writeError(ctx, err);
     }
 }

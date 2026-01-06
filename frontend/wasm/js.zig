@@ -4,10 +4,10 @@ const assert = std.debug.assert;
 const zx = @import("zx");
 const js = zx.Client.js;
 
-const utils = @import("../utils.zig");
+const wasm = @import("../wasm.zig");
 
 comptime {
-    if (utils.inClient()) {
+    if (wasm.inClient()) {
         @export(&onPromiseCompleted, .{
             .name = "onPromiseCompleted",
         });
@@ -32,7 +32,7 @@ const Awaitable = struct {
     callbacks: Callbacks,
 };
 
-var awaiting: std.AutoHashMap(Id, Awaitable) = .init(std.heap.wasm_allocator);
+var awaiting: std.AutoHashMap(Id, Awaitable) = .init(wasm.allocator);
 
 /// Write to console. Useful because there is no stdout
 pub fn log(args: anytype) !void {

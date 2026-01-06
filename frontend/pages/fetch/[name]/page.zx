@@ -4,7 +4,7 @@ const zx = @import("zx");
 
 const api = @import("api");
 
-const utils = @import("../../../utils.zig");
+const wasm = @import("../../../wasm.zig");
 
 var name: []const u8 = undefined;
 var id: u64 = undefined;
@@ -19,9 +19,9 @@ fn updateCallback(response: api.fetch.status.Output) !void {
 }
 
 fn update(_: u64) !void {
-    try utils.api.execute(
+    try wasm.api.execute(
         api.fetch.status,
-        std.heap.wasm_allocator,
+        wasm.allocator,
         "/api/fetch/status",
         updateCallback,
         .{
@@ -36,11 +36,11 @@ fn startCallback(response: api.fetch.start.Output) !void {
 }
 
 pub fn Stats(allocator: zx.Allocator) zx.Component {
-    if (!utils.inClient()) {
+    if (!wasm.inClient()) {
         return (<></>);
     }
 
-    utils.api.execute(
+    wasm.api.execute(
         api.fetch.start,
         allocator,
         "/api/fetch/start",

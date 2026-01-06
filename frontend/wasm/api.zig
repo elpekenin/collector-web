@@ -4,16 +4,11 @@ const assert = std.debug.assert;
 const zx = @import("zx");
 const js = zx.Client.js;
 
-const utils = @import("../utils.zig");
+const wasm = @import("../wasm.zig");
 
 fn zigToJs(allocator: std.mem.Allocator, zig: anytype) !js.Object {
     // allocate an empty JS object
-    var object: js.Object = try js.global.callAlloc(
-        js.Object,
-        allocator,
-        "Object",
-        .{},
-    );
+    var object: js.Object = try js.global.call(js.Object, "Object", .{});
 
     inline for (std.meta.fields(@TypeOf(zig))) |field| {
         const T = field.type;
@@ -34,6 +29,7 @@ fn zigToJs(allocator: std.mem.Allocator, zig: anytype) !js.Object {
 }
 
 // TODO: support nested structs
+// TODO: use an arena so that value can be `.deinit()`'ed
 fn jsToZig(comptime T: type, allocator: std.mem.Allocator, object: js.Object) !T {
     var zig: T = undefined;
 
@@ -58,45 +54,33 @@ pub fn getInput(comptime api: type, ctx: zx.RouteContext) !std.json.Parsed(api.I
 
 /// Helper to write an error (server)
 pub fn writeError(ctx: zx.RouteContext, err: anyerror) !void {
-    const writer = ctx.response.writer() orelse return error.CantSendJson;
-
     ctx.response.setStatus(.internal_server_error);
-    ctx.response.setContentType(.@"application/json");
-
-    const fmt = std.json.fmt(
+    try ctx.response.json(
         .{
             .@"error" = @errorName(err),
         },
         .{},
     );
-    try fmt.format(writer);
 }
 
 /// Helper to write the output for an API request (server)
 pub fn writeOutput(comptime api: type, ctx: zx.RouteContext, value: anyerror!api.Output) !void {
-    const writer = ctx.response.writer() orelse return error.CantSendJson;
-
     const success = value catch |err| return writeError(ctx, err);
 
     ctx.response.setStatus(.ok);
-    ctx.response.setContentType(.@"application/json");
-
-    const fmt = std.json.fmt(success, .{});
-    try fmt.format(writer);
+    try ctx.response.json(success, .{});
 }
 
-fn wrapHandler(comptime Output: type, func: *const fn (Output) anyerror!void) utils.js.AwaitHandler {
-    const allocator = std.heap.wasm_allocator;
-
+fn wrapHandler(comptime Output: type, func: *const fn (Output) anyerror!void) wasm.js.AwaitHandler {
     return struct {
         fn parseResponse(
             // result from `const response = await fetch(...)`
             response: js.Object,
         ) !void {
-            const text: js.Object = try response.callAlloc(js.Object, allocator, "text", .{});
+            const text: js.Object = try response.call(js.Object, "text", .{});
             defer text.deinit();
 
-            try utils.js.await(text, .{
+            try wasm.js.await(text, .{
                 .onFulfill = parseText,
             });
         }
@@ -108,17 +92,12 @@ fn wrapHandler(comptime Output: type, func: *const fn (Output) anyerror!void) ut
             const JSON: js.Object = try js.global.get(js.Object, "JSON");
             defer JSON.deinit();
 
-            const json: js.Object = try JSON.callAlloc(
-                js.Object,
-                allocator,
-                "parse",
-                .{
-                    text,
-                },
-            );
+            const json: js.Object = try JSON.call(js.Object, "parse", .{text});
             defer json.deinit();
 
-            const output = try jsToZig(Output, allocator, json);
+            const output = try jsToZig(Output, wasm.allocator, json);
+            // defer output.deinit();
+            // try func(output.value);
             try func(output);
         }
     }.parseResponse;
@@ -132,7 +111,7 @@ pub fn execute(
     comptime successHandler: *const fn (api.Output) anyerror!void,
     input: api.Input,
 ) !void {
-    if (!utils.inClient()) return error.NotInBrowser;
+    if (!wasm.inClient()) return error.NotInBrowser;
 
     const JSON: js.Object = try js.global.get(js.Object, "JSON");
     defer JSON.deinit();
@@ -148,6 +127,7 @@ pub fn execute(
             js_body,
         },
     );
+    defer allocator.free(body_str);
 
     const options = try zigToJs(allocator, .{
         .method = @as([]const u8, "POST"),
@@ -158,18 +138,13 @@ pub fn execute(
     });
     defer options.deinit();
 
-    const fetch: js.Object = try js.global.callAlloc(
-        js.Object,
-        allocator,
-        "fetch",
-        .{
-            js.string(url),
-            options,
-        },
-    );
+    const fetch: js.Object = try js.global.call(js.Object, "fetch", .{
+        js.string(url),
+        options,
+    });
     defer fetch.deinit();
 
-    try utils.js.await(fetch, .{
+    try wasm.js.await(fetch, .{
         .onFulfill = wrapHandler(api.Output, successHandler),
     });
 }
