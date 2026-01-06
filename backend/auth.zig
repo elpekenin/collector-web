@@ -90,6 +90,7 @@ pub fn signin(allocator: Allocator, username: []const u8, password: []const u8) 
     ) catch |e| std.log.err("{t}", .{e});
 
     return .{
+        .username = username,
         .token = try createTokenFor(
             allocator,
             &session,
@@ -117,6 +118,7 @@ pub fn login(allocator: Allocator, username: []const u8, password: []const u8) !
     if (!std.mem.eql(u8, &hashed, secret.hashed_password)) return error.InvalidCredentials;
 
     return .{
+        .username = username,
         .token = try createTokenFor(
             allocator,
             &session,

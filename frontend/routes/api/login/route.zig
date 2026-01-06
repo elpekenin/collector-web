@@ -5,21 +5,19 @@ const backend = @import("backend");
 
 const utils = @import("../../../utils.zig");
 
-pub const options: zx.PageOptions = .{
-    .methods = &.{ .POST },
-};
-
-pub fn Page(ctx: zx.PageContext) !zx.Component {
-    if (utils.api.getInput(api.logout, ctx)) |input| {
+pub fn POST(ctx: zx.RouteContext) !void {
+    if (utils.api.getInput(api.login, ctx)) |input| {
         defer input.deinit();
         try utils.api.writeOutput(
-            api.logout,
+            api.login,
             ctx,
-            backend.auth.logout(ctx.arena, input.value.token),
+            backend.auth.login(
+                ctx.arena,
+                input.value.username,
+                input.value.password,
+            ),
         );
     } else |err| {
         try utils.api.writeError(ctx, err);
     }
-
-    return (<></>);
 }

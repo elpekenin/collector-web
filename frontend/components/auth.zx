@@ -51,6 +51,13 @@ fn openLogin(_: zx.EventContext) void {
     showForm();
 }
 
+fn inCallback(response: api.signin.Output) !void {
+    user_data = .{
+        .username = response.username,
+        .token = response.token,
+    };
+}
+
 fn authenticate(_: zx.EventContext) void {
     const allocator = std.heap.wasm_allocator;
 
@@ -63,11 +70,12 @@ fn authenticate(_: zx.EventContext) void {
     const username = username_input.ref.getAlloc(js.String, allocator, "value") catch return;
     const password = password_input.ref.getAlloc(js.String, allocator, "value") catch return;
 
-    const response = switch (action orelse @panic("action is null")) {
+    switch (action orelse @panic("action is null")) {
         .signin => utils.api.execute(
             api.signin,
             allocator,
             "/api/signin",
+            inCallback,
             .{
                 .username = username,
                 .password = password,
@@ -78,38 +86,34 @@ fn authenticate(_: zx.EventContext) void {
             api.login,
             allocator,
             "/api/login",
+            inCallback,
             .{
                 .username = username,
                 .password = password,
                 .referrer = referrer,
             },
         ) catch return,
-    };
+    }
+}
 
-    user_data = .{
-        .username = username,
-        .token = response.token,
-    };
+fn outCallback(response: api.logout.Output) !void {
+    if (response.ok != 1) @panic("should always return 1");
+    user_data = null;
 }
 
 fn logout(_: zx.EventContext) void {
     const allocator = std.heap.wasm_allocator;
 
     const token = if (user_data) |data| data.token else @panic("user_data is null");
-    const response = utils.api.execute(
+    utils.api.execute(
         api.logout,
         allocator,
         "/api/logout",
+        outCallback,
         .{
             .token = token,
         },
     ) catch return;
-
-    if (response.ok == 1) {
-        user_data = null;
-    }
-
-    // TODO: redirect
 }
 
 fn closeForm(_: zx.EventContext) void {

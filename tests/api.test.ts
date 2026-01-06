@@ -60,16 +60,9 @@ const callApi = async <T extends Request>(
 	});
 
 	const text = await response.text();
-
-	// FIXME: remove
-	const clean = text.replace("<!DOCTYPE html>", "");
-	if (clean.length === 0) {
-		throw new Error("empty response");
-	}
-
 	return {
 		code: response.status,
-		json: JSON.parse(clean),
+		json: JSON.parse(text),
 	};
 };
 

@@ -10,6 +10,7 @@ pub const signin = struct {
     };
 
     pub const Output = struct {
+        username: []const u8,
         token: []const u8,
     };
 };

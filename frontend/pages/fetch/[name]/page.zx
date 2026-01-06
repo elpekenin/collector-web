@@ -13,20 +13,26 @@ var count: zx.Signal(u64) =.init(0);
 var ms: zx.Signal(u64) = .init(0);
 var updater: zx.Effect(u64) = .init(&count, update);
 
+fn updateCallback(response: api.fetch.status.Output) !void {
+    count.set(response.count);
+    ms.set(response.ms_elapsed);
+}
+
 fn update(_: u64) !void {
-    const reply = try utils.api.execute(
+    try utils.api.execute(
         api.fetch.status,
         std.heap.wasm_allocator,
         "/api/fetch/status",
+        updateCallback,
         .{
             .id = id,
         },
     );
+}
 
-    if (count.value != reply.count) {
-        count.set(reply.count);
-        ms.set(reply.ms_elapsed);
-    }
+fn startCallback(response: api.fetch.start.Output) !void {
+    id = response.id;
+    count.set(0);
 }
 
 pub fn Stats(allocator: zx.Allocator) zx.Component {
@@ -34,10 +40,11 @@ pub fn Stats(allocator: zx.Allocator) zx.Component {
         return (<></>);
     }
 
-    const reply = utils.api.execute(
+    utils.api.execute(
         api.fetch.start,
         allocator,
         "/api/fetch/start",
+        startCallback,
         .{
             .name = name,
         },
@@ -48,9 +55,6 @@ pub fn Stats(allocator: zx.Allocator) zx.Component {
             </>
         );
     };
-
-    id = reply.id;
-    count.notifyChange();
 
     return (
         <fragment @{allocator}>

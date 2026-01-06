@@ -5,6 +5,7 @@ const zx = @import("zx");
 
 pub const api = @import("utils/api.zig");
 pub const html = @import("utils/html.zig");
+pub const js = @import("utils/js.zig");
 pub const routing = @import("utils/routing.zig");
 
 // NOTE: **must** to be inline to work correctly if there are arch-specific types and whatnot
