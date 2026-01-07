@@ -8,6 +8,18 @@ const meta = @import("zx_meta").meta;
 
 const wasm = @import("wasm.zig");
 
+comptime {
+    if (zx.platform == .browser) {
+        @export(&mainClient, .{
+            .name = "mainClient",
+        });
+
+        @export(&handleEvent, .{
+            .name = "handleEvent",
+        });
+    }
+}
+
 pub const std_options: std.Options = .{
     .log_scope_levels = &.{
         .{
@@ -41,18 +53,17 @@ pub fn main() !void {
     try app.start();
 }
 
-pub var client = zx.Client.init(
+var client: zx.Client = .init(
     wasm.allocator,
     .{ .components = &@import("zx_components").components },
 );
 
-export fn mainClient() void {
-    if (builtin.os.tag != .freestanding) return;
+fn mainClient() callconv(wasm.calling_convention) void {
     client.info();
     client.renderAll();
 }
 
-export fn handleEvent(velement_id: u64, event_type_id: u8, event_id: u64) void {
+fn handleEvent(velement_id: u64, event_type_id: u8, event_id: u64) callconv(wasm.calling_convention) void {
     if (builtin.os.tag != .freestanding) return;
 
     const event_type: zx.Client.EventType = @enumFromInt(event_type_id);

@@ -138,8 +138,8 @@ fn entrypoint(allocator: Allocator, name: []const u8, task: *Task) !void {
     }
 }
 
-pub fn run(allocator: Allocator, name: []const u8) !api.fetch.start.Output {
-    const copy = try allocator.dupe(u8, name);
+pub fn run(allocator: Allocator, args: api.fetch.start.Args) !api.fetch.start.Response {
+    const copy = try allocator.dupe(u8, args.name);
     errdefer allocator.free(copy);
 
     const task = blk: {
@@ -161,9 +161,12 @@ pub fn run(allocator: Allocator, name: []const u8) !api.fetch.start.Output {
     };
 }
 
-pub fn status(id: Task.Id.backing_integer) !api.fetch.status.Output {
+pub fn status(allocator: Allocator, args: api.fetch.status.Args) !api.fetch.status.Response {
+    // argument is there so that all APIs have same signature
+    _ = allocator;
+
     for (&global.tasks) |*task| {
-        if (task.id != .none and @intFromEnum(task.id) == id) {
+        if (task.id != .none and @intFromEnum(task.id) == args.id) {
             return .{
                 .count = task.count,
                 .finished = task.id == .none,

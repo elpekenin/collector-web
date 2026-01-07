@@ -25,7 +25,7 @@ pub fn Error(ctx: zx.ErrorContext) zx.Component {
     const trace = stackTrace(ctx.arena) catch "";
 
     if (wasm.routing.isApi(ctx.request.url)) {
-        @panic("CRITICAL ERROR: APIs should never error, instead return 500 + {error: ...}");
+        @panic("unreachable: APIs shouldn't go through pages' processing");
     }
 
     return (

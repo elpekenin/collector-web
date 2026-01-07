@@ -54,7 +54,7 @@ fn openLogin(_: zx.EventContext) void {
     showForm();
 }
 
-fn inCallback(response: api.signin.Output) !void {
+fn inCallback(response: api.signin.Response) !void {
     const username = try wasm.allocator.dupe(u8, response.username);
     errdefer wasm.allocator.free(username);
 
@@ -115,7 +115,7 @@ fn authenticate(_: zx.EventContext) void {
     }
 }
 
-fn outCallback(response: api.logout.Output) !void {
+fn outCallback(response: api.logout.Response) !void {
     if (response.ok != 1) {
         wasm.js.log(.{ js.string("API's ok field should always be 1") }) catch {};
         return;
@@ -166,7 +166,7 @@ fn closeForm(_: zx.EventContext) void {
 }
 
 pub fn Buttons(allocator: zx.Allocator) zx.Component {
-    if (!wasm.inClient()) {
+    if (zx.platform != .browser) {
         return (<></>);
     }
 
@@ -190,7 +190,7 @@ pub fn Buttons(allocator: zx.Allocator) zx.Component {
 }
 
 pub fn Form(allocator: zx.Allocator) zx.Component {
-    if (!wasm.inClient()) {
+    if (zx.platform != .browser) {
         return (<></>);
     }
 

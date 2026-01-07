@@ -61,12 +61,12 @@ fn createTokenFor(allocator: Allocator, session: *database.Session, user_id: u64
     return token.value;
 }
 
-pub fn signin(allocator: Allocator, username: []const u8, password: []const u8) !api.signin.Output {
+pub fn signin(allocator: Allocator, args: api.signin.Args) !api.signin.Response {
     var session = try database.getSession(allocator);
     defer session.deinit();
 
     const user_id = session.insert(User, .{
-        .username = username,
+        .username = args.username,
     }) catch |err| switch (err) {
         error.UniqueViolation => return error.UsernameNotAvailable,
         else => return err,
@@ -77,7 +77,10 @@ pub fn signin(allocator: Allocator, username: []const u8, password: []const u8) 
     ) catch |e| std.log.err("{t}", .{e});
 
     const salt = try randomSlice(allocator, salt_len);
-    const hashed = try hash(password, salt);
+    const hashed = hash(
+        args.password,
+        salt,
+    ) catch |e| std.debug.panic("couldn't hash password & salt: {}", .{e});
 
     const secret_id = try session.insert(Secret, .{
         .id = user_id,
@@ -90,7 +93,7 @@ pub fn signin(allocator: Allocator, username: []const u8, password: []const u8) 
     ) catch |e| std.log.err("{t}", .{e});
 
     return .{
-        .username = username,
+        .username = args.username,
         .token = try createTokenFor(
             allocator,
             &session,
@@ -99,26 +102,26 @@ pub fn signin(allocator: Allocator, username: []const u8, password: []const u8) 
     };
 }
 
-pub fn login(allocator: Allocator, username: []const u8, password: []const u8) !api.login.Output {
+pub fn login(allocator: Allocator, args: api.login.Args) !api.login.Response {
     var session = try database.getSession(allocator);
     defer session.deinit();
 
     const user = try session.query(User).where(
         "username",
-        username,
+        args.username,
     ).findFirst() orelse return error.UserNotFound;
 
     const secret = try session.find(Secret, user.id) orelse return error.SecretNotFound;
 
     const hashed = hash(
-        password,
+        args.password,
         secret.salt,
     ) catch |e| std.debug.panic("couldn't hash password & salt: {}", .{e});
 
     if (!std.mem.eql(u8, &hashed, secret.hashed_password)) return error.InvalidCredentials;
 
     return .{
-        .username = username,
+        .username = args.username,
         .token = try createTokenFor(
             allocator,
             &session,
@@ -127,11 +130,11 @@ pub fn login(allocator: Allocator, username: []const u8, password: []const u8) !
     };
 }
 
-pub fn logout(allocator: Allocator, token: []const u8) !api.logout.Output {
+pub fn logout(allocator: Allocator, args: api.logout.Args) !api.logout.Response {
     var session = try database.getSession(allocator);
     defer session.deinit();
 
-    try session.query(Token).where("value", token).delete().exec();
+    try session.query(Token).where("value", args.token).delete().exec();
 
     return .{
         .ok = 1,

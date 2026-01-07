@@ -7,7 +7,7 @@ const js = zx.Client.js;
 const wasm = @import("../wasm.zig");
 
 comptime {
-    if (wasm.inClient()) {
+    if (zx.platform == .browser) {
         @export(&onPromiseCompleted, .{
             .name = "onPromiseCompleted",
         });
@@ -46,7 +46,7 @@ fn printOnReject(object: js.Object) !void {
     try log(.{ js.string("error awaiting for Promise:"), object });
 }
 
-fn onPromiseCompleted(id: Id, success: bool) callconv(.{ .wasm_mvp = .{} }) void {
+fn onPromiseCompleted(id: Id, success: bool) callconv(wasm.calling_convention) void {
     const kv = awaiting.fetchRemove(id) orelse {
         log(.{js.string("onPromiseComplete received unknown id")}) catch {};
         return;

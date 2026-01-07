@@ -51,12 +51,12 @@ afterAll(async () => {
 
 const callApi = async <T extends Request>(
 	path: string,
-	Request: T,
+	args: T,
 ): Promise<Response> => {
 	const response = await fetch(baseUrl + path, {
 		method: "POST",
 		headers: { "Content-Type": "application/json" },
-		body: JSON.stringify(Request),
+		body: JSON.stringify(args),
 	});
 
 	const text = await response.text();

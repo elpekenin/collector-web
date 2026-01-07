@@ -28,50 +28,34 @@ fn zigToJs(allocator: std.mem.Allocator, zig: anytype) !js.Object {
     return object;
 }
 
-// TODO: support nested structs
-// TODO: use an arena so that value can be `.deinit()`'ed
-fn jsToZig(comptime T: type, allocator: std.mem.Allocator, object: js.Object) !T {
-    var zig: T = undefined;
-
-    inline for (@typeInfo(T).@"struct".fields) |field| {
-        const value = switch (field.type) {
-            []const u8 => try object.getAlloc(js.String, allocator, field.name),
-            bool => @compileError("dont use booleans"),
-            else => |F| try object.get(F, field.name),
-        };
-
-        @field(zig, field.name) = value;
-    }
-
-    return zig;
-}
-
-/// Helper to parse input to an API (server)
-pub fn getInput(comptime api: type, ctx: zx.RouteContext) !std.json.Parsed(api.Input) {
+fn handleInner(
+    comptime api: type,
+    ctx: zx.RouteContext,
+    handler: *const fn (std.mem.Allocator, api.Args) anyerror!api.Response,
+) !void {
     const text = ctx.request.text() orelse return error.EmptyRequest;
-    return std.json.parseFromSlice(api.Input, ctx.arena, text, .{});
+
+    const args: std.json.Parsed(api.Args) = try std.json.parseFromSlice(api.Args, ctx.arena, text, .{});
+    defer args.deinit();
+
+    const response = try handler(ctx.arena, args.value);
+    try ctx.response.json(response, .{});
 }
 
-/// Helper to write an error (server)
-pub fn writeError(ctx: zx.RouteContext, err: anyerror) !void {
-    ctx.response.setStatus(.internal_server_error);
-    try ctx.response.json(
-        .{
-            .@"error" = @errorName(err),
-        },
-        .{},
-    );
+pub fn handle(
+    comptime api: type,
+    ctx: zx.RouteContext,
+    handler: *const fn (std.mem.Allocator, api.Args) anyerror!api.Response,
+) void {
+    handleInner(api, ctx, handler) catch |err| {
+        ctx.response.setStatus(.internal_server_error);
+        ctx.response.json(.{ .@"error" = @errorName(err) }, .{}) catch @panic(
+            "could not send JSON error",
+        );
+    };
 }
 
-/// Helper to write the output for an API request (server)
-pub fn writeOutput(comptime api: type, ctx: zx.RouteContext, value: anyerror!api.Output) !void {
-    const success = value catch |err| return writeError(ctx, err);
-
-    ctx.response.setStatus(.ok);
-    try ctx.response.json(success, .{});
-}
-
-fn wrapHandler(comptime Output: type, func: *const fn (Output) anyerror!void) wasm.js.AwaitHandler {
+fn wrapHandler(comptime Response: type, func: *const fn (Response) anyerror!void) wasm.js.AwaitHandler {
     return struct {
         fn parseResponse(
             // result from `const response = await fetch(...)`
@@ -89,16 +73,13 @@ fn wrapHandler(comptime Output: type, func: *const fn (Output) anyerror!void) wa
             // result from `const text = await response.text()`
             text: js.Object,
         ) !void {
-            const JSON: js.Object = try js.global.get(js.Object, "JSON");
-            defer JSON.deinit();
+            const slice: []const u8 = try text.value.string(wasm.allocator);
+            defer wasm.allocator.free(slice);
 
-            const json: js.Object = try JSON.call(js.Object, "parse", .{text});
+            const json: std.json.Parsed(Response) = try std.json.parseFromSlice(Response, wasm.allocator, slice, .{});
             defer json.deinit();
 
-            const output = try jsToZig(Output, wasm.allocator, json);
-            // defer output.deinit();
-            // try func(output.value);
-            try func(output);
+            try func(json.value);
         }
     }.parseResponse;
 }
@@ -108,15 +89,15 @@ pub fn execute(
     comptime api: type,
     allocator: std.mem.Allocator,
     url: []const u8,
-    comptime successHandler: *const fn (api.Output) anyerror!void,
-    input: api.Input,
+    comptime successHandler: *const fn (api.Response) anyerror!void,
+    args: api.Args,
 ) !void {
-    if (!wasm.inClient()) return error.NotInBrowser;
+    if (zx.platform != .browser) return error.NotInBrowser;
 
     const JSON: js.Object = try js.global.get(js.Object, "JSON");
     defer JSON.deinit();
 
-    const js_body = try zigToJs(allocator, input);
+    const js_body = try zigToJs(allocator, args);
     defer js_body.deinit();
 
     const body_str: []const u8 = try JSON.callAlloc(
@@ -145,6 +126,6 @@ pub fn execute(
     defer fetch.deinit();
 
     try wasm.js.await(fetch, .{
-        .onFulfill = wrapHandler(api.Output, successHandler),
+        .onFulfill = wrapHandler(api.Response, successHandler),
     });
 }

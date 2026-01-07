@@ -13,7 +13,7 @@ var count: zx.Signal(u64) =.init(0);
 var ms: zx.Signal(u64) = .init(0);
 var updater: zx.Effect(u64) = .init(&count, update);
 
-fn updateCallback(response: api.fetch.status.Output) !void {
+fn updateCallback(response: api.fetch.status.Response) !void {
     count.set(response.count);
     ms.set(response.ms_elapsed);
 }
@@ -30,13 +30,13 @@ fn update(_: u64) !void {
     );
 }
 
-fn startCallback(response: api.fetch.start.Output) !void {
+fn startCallback(response: api.fetch.start.Response) !void {
     id = response.id;
     count.set(0);
 }
 
 pub fn Stats(allocator: zx.Allocator) zx.Component {
-    if (!wasm.inClient()) {
+    if (zx.platform != .browser) {
         return (<></>);
     }
 
