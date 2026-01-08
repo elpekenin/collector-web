@@ -14,23 +14,16 @@ var count: zx.Signal(u64) =.init(0);
 var ms: zx.Signal(u64) = .init(0);
 
 fn updateCallback(response: api.fetch.status.Response) !void {
-    count.value = response.count;
-    ms.value = response.ms_elapsed;
+    count.set(response.count);
+    ms.set(response.ms_elapsed);
 
-    // only trigger update if fetch is still going
+    // trigger another update if fetch is still going
     if (!response.finished) {
-        count.notifyChange();
+        fetchStats();
     }
 }
 
-fn onCountChange(new_count: u64) void {
-    _ = new_count;
-
-    log.info("onCountChange, id: {}", .{id});
-
-    // TODO: delay?
-
-    // after a change to the count, trigger another fetch of stats
+fn fetchStats() void {
     wasm.api.execute(
         api.fetch.status,
         wasm.allocator,
@@ -39,7 +32,9 @@ fn onCountChange(new_count: u64) void {
         .{
             .id = id,
         },
-    ) catch {}; // TODO: stop?
+    ) catch |err| {
+        log.err("fetchStats failed: {}", .{err});
+    };
 }
 
 pub fn Stats(
@@ -49,10 +44,9 @@ pub fn Stats(
 ) zx.Component {
     if (zx.platform != .browser) return .none;
 
+    // kick off the updates, delay so that WASM is set up
     id = ctx.props.id;
-
-    count.set(0); // kick off the updates
-    zx.effect(&count,&onCountChange);
+    _ = zx.client.setTimeout(&fetchStats, 200);
 
     return (
         <fragment @allocator={ctx.allocator}>

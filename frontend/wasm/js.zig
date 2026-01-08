@@ -1,5 +1,5 @@
 const std = @import("std");
-const logger = std.log.scoped(.@"wasm.js");
+const log = std.log.scoped(.@"wasm.js");
 
 const zx = @import("zx");
 const js = zx.Client.js;
@@ -30,7 +30,7 @@ const Callbacks = struct {
 };
 
 fn emptyFulfill(_: js.Object) !void {
-    logger.err("called emptyFulfill callback", .{});
+    log.err("called emptyFulfill callback", .{});
 }
 
 const Awaitable = struct {
@@ -53,7 +53,7 @@ const global = struct {
 };
 
 fn printOnReject(object: js.Object) !void {
-    try log(.{ js.string("error awaiting for Promise:"), object });
+    log.err("error awaiting for Promise: {}", .{object});
 }
 
 fn onPromiseCompleted(id: Id, success: bool) callconv(wasm.calling_convention) void {
@@ -64,9 +64,11 @@ fn onPromiseCompleted(id: Id, success: bool) callconv(wasm.calling_convention) v
             }
         }
 
-        log(.{js.string("onPromiseComplete received unknown id")}) catch {};
+        log.err("onPromiseComplete received unknown id", .{});
         return;
     };
+
+    defer awaitable.promise_id = null;
 
     const function = if (success)
         awaitable.callbacks.onFulfill
@@ -77,19 +79,11 @@ fn onPromiseCompleted(id: Id, success: bool) callconv(wasm.calling_convention) v
     defer object.deinit();
 
     function(object) catch |err| {
-        log(.{ js.string("await handler failed with:"), js.string(@errorName(err)) }) catch {};
+        log.err("await handler failed with: {}", .{err});
     };
 }
 
 // Public API
-
-/// Write to console. Useful because there is no stdout
-pub fn log(args: anytype) !void {
-    const console: js.Object = try js.global.get(js.Object, "console");
-    defer console.deinit();
-
-    try console.call(void, "log", args);
-}
 
 /// Construct the JS equivalent of a zig object
 pub fn fromZig(allocator: std.mem.Allocator, zig: anytype) !js.Object {

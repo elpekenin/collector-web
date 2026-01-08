@@ -30,6 +30,6 @@ let wasm: WebAssembly.WebAssemblyInstantiatedSource | null = null;
 
 init({
 	importObject,
-}).then((value) => {
-	wasm = value;
+}).then((result) => {
+	wasm = result.source;
 });
