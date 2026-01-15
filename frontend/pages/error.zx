@@ -11,11 +11,11 @@ fn stackTrace(allocator: std.mem.Allocator) ![]const u8 {
     defer text.deinit();
 
     if (@errorReturnTrace()) |trace| {
-         try std.debug.writeStackTrace(
+        try std.debug.writeStackTrace(
             trace.*,
             &text.writer,
             try std.debug.getSelfDebugInfo(),
-            .no_color
+            .no_color,
         );
     }
 

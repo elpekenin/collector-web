@@ -3,7 +3,6 @@ const std = @import("std");
 const builtin = @import("builtin");
 
 const zx = @import("zx");
-const meta = @import("zx_meta").meta;
 
 const wasm = @import("wasm.zig");
 
@@ -18,6 +17,8 @@ comptime {
         });
     }
 }
+
+const AppContext = struct {};
 
 pub const std_options: std.Options = .{
     .log_level = .debug,
@@ -48,8 +49,9 @@ else
     std.debug.simple_panic;
 
 const config: zx.App.Config = .{
-    .server = .{},
-    .meta = meta,
+    .server = .{
+        .port = 3000,
+    },
 };
 
 pub fn main() !void {
@@ -62,17 +64,14 @@ pub fn main() !void {
 
     const allocator = gpa.allocator();
 
-    const app: *zx.App = try .init(allocator, config);
-    defer app.deinit();
+    const server: *zx.Server(AppContext) = try .init(allocator, config, .{});
+    defer server.deinit();
 
-    app.info();
-    try app.start();
+    server.info();
+    try server.start();
 }
 
-var client: zx.Client = .init(
-    wasm.allocator,
-    .{ .components = &@import("zx_components").components },
-);
+var client: zx.Client = .init(wasm.allocator, .{});
 
 fn mainClient() callconv(wasm.calling_convention) void {
     client.info();

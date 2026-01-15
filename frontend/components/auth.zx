@@ -70,7 +70,7 @@ fn inCallback(response: api.signin.Response) !void {
 
 fn authenticate(_: zx.EventContext) void {
     const action = maybe_action orelse {
-        log.err("action is null", .{})  ;
+        log.err("action is null", .{});
         return;
     };
 
@@ -175,7 +175,8 @@ pub fn Buttons(allocator: zx.Allocator) zx.Component {
         <div @{allocator}>
             {if (maybe_user_data) |user_data| (
                 <>
-                    Welcome back, {user_data.username}
+                     Welcome back,
+                    {user_data.username}
                     <button {class} onclick={logout}>Log out</button>
                 </>
             ) else (

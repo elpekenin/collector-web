@@ -9,8 +9,8 @@ const backend = @import("backend");
 
 const wasm = @import("../../../wasm.zig");
 
-var id: u64 = undefined;
-var count: zx.Signal(u64) =.init(0);
+var id: u64 = 0;
+var count: zx.Signal(u64) = .init(0);
 var ms: zx.Signal(u64) = .init(0);
 
 fn updateCallback(response: api.fetch.status.Response) !void {
@@ -19,7 +19,7 @@ fn updateCallback(response: api.fetch.status.Response) !void {
 
     // trigger another update if fetch is still going
     if (!response.finished) {
-        fetchStats();
+        _ = zx.client.setTimeout(&fetchStats, 300);
     }
 }
 

@@ -98,11 +98,13 @@ pub fn build(b: *Build) !void {
 
     const zx_build = try zx.init(b, exe, zx_options);
 
-    // HACK: make "api" module available to wasm executable
-    if (zx_build.client_exe) |wasm| {
-        if (wasm.root_module.import_table.get("zx_components")) |components| {
-            components.addImport("api", api);
-            components.addImport("options", options);
+    // HACK: make "api" module available to ZX modules
+    for (&[_]*Build.Step.Compile{ zx_build.zx_exe, zx_build.client_exe orelse @panic("no client exe") }) |executable| {
+        const module = executable.root_module.import_table.get("zx") orelse continue;
+
+        if (module.import_table.get("zx_meta")) |meta| {
+            meta.addImport("api", api);
+            meta.addImport("options", options);
         }
     }
 

@@ -19,19 +19,7 @@ pub const Variant = struct {
     size: ?[]const u8 = null,
     stamps: ?[]const []const u8 = null,
     foil: ?[]const u8 = null,
-
-    pub fn insert(session: *database.Session, variant: anytype) !void {
-        _ = try session.insert(Variant, variant);
-    }
 };
-
-pub fn insert(session: *database.Session, card: anytype) !void {
-    _ = session.insert(Card, card) catch |err| switch (err) {
-        // card existed in DB already, lets not error out
-        error.UniqueViolation => {},
-        else => return err,
-    };
-}
 
 pub fn all(allocator: Allocator, name: []const u8) ![]const Card {
     var session = try database.getSession(allocator);

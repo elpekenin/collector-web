@@ -10,6 +10,7 @@ const api = @import("api");
 const options = @import("options");
 
 const database = @import("database.zig");
+const Omit = @import("utils.zig").Omit;
 const Card = @import("Card.zig");
 
 const Task = struct {
@@ -76,10 +77,10 @@ fn variants(allocator: Allocator, session: *database.Session, brief: sdk.Card.Br
         return 0;
     }
 
-    const card: sdk.Card = try .get(allocator, .{ .id = brief.id });
-    defer card.deinit();
+    const sdk_card: sdk.Card = try .get(allocator, .{ .id = brief.id });
+    defer sdk_card.deinit();
 
-    const set_id = switch (card) {
+    const set_id = switch (sdk_card) {
         inline else => |info| info.set.id,
     };
 
@@ -88,27 +89,39 @@ fn variants(allocator: Allocator, session: *database.Session, brief: sdk.Card.Br
     });
     defer set.deinit();
 
-    try Card.insert(session, .{
+    const db_card: Omit(Card, "id") = .{
         .card_id = brief.id,
         .name = brief.name,
         .image_url = url,
         .release_date = try dateToNum(set.releaseDate),
-    });
+    };
+
+    if (try session.query(Card).findBy("card_id", db_card.card_id)) |exists| {
+        try session.update(Card, exists.id, db_card);
+    } else {
+        _ = try session.insert(Card, db_card);
+    }
 
     // TODO: remove this, error out if variants aren't present
-    const card_variants: []const sdk.VariantDetailed = switch (card) {
+    const card_variants: []const sdk.VariantDetailed = switch (sdk_card) {
         inline else => |info| info.variant_detailed,
     } orelse return 1;
 
     for (card_variants) |variant| {
-        try Card.Variant.insert(session, .{
+        const db_variant: Omit(Card.Variant, "id") = .{
             .card_id = brief.id,
             .type = variant.type,
             .subtype = variant.subtype,
             .size = variant.size,
             .stamps = variant.stamp,
             .foil = variant.foil,
-        });
+        };
+
+        if (try session.query(Card.Variant).where("card_id", brief.id).where("type", db_variant.type).findFirst()) |in_db| {
+            try session.update(Card.Variant, in_db.id, db_variant);
+        } else {
+            _ = try session.insert(Card.Variant, db_variant);
+        }
     }
 
     return card_variants.len;
