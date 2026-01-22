@@ -41,7 +41,7 @@ CREATE TABLE IF NOT EXISTS "Variant" (
     type TEXT NOT NULL,
     subtype TEXT,
     size TEXT,
-    stamp TEXT,
+    stamps TEXT,
     foil TEXT,
 
     FOREIGN KEY(card_id) REFERENCES card(card_id),
@@ -49,11 +49,12 @@ CREATE TABLE IF NOT EXISTS "Variant" (
     CHECK (type <> ''),
     CHECK (subtype IS NULL OR subtype <> ''),
     CHECK (size IS NULL OR size <> ''),
-    CHECK (stamp IS NULL OR stamp <> ''),
+    CHECK (stamps IS NULL OR stamps <> ''),
     CHECK (foil IS NULL OR foil <> '')
 ) STRICT;
 
 CREATE TABLE IF NOT EXISTS "Owned" (
+    id INTEGER PRIMARY KEY NOT NULL,
     user_id INTEGER NOT NULL,
     variant_id INTEGER NOT NULL,
     owned INTEGER NOT NULL,

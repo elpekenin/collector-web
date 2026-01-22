@@ -1,75 +1,17 @@
 const std = @import("std");
-const log = std.log.scoped(.@"fetch/[name]");
 
 const zx = @import("zx");
-const js = zx.Client.js;
 
-const api = @import("api");
 const backend = @import("backend");
-
-const wasm = @import("../../../wasm.zig");
-
-var id: u64 = 0;
-var count: zx.Signal(u64) = .init(0);
-var ms: zx.Signal(u64) = .init(0);
-
-fn updateCallback(response: api.fetch.status.Response) !void {
-    count.set(response.count);
-    ms.set(response.ms_elapsed);
-
-    // trigger another update if fetch is still going
-    if (!response.finished) {
-        _ = zx.client.setTimeout(&fetchStats, 300);
-    }
-}
-
-fn fetchStats() void {
-    wasm.api.execute(
-        api.fetch.status,
-        wasm.allocator,
-        "/api/fetch/status",
-        updateCallback,
-        .{
-            .id = id,
-        },
-    ) catch |err| {
-        log.err("fetchStats failed: {}", .{err});
-    };
-}
-
-pub fn Stats(
-    ctx: *zx.ComponentCtx(struct {
-        id: u64,
-    }),
-) zx.Component {
-    if (zx.platform != .browser) return .none;
-
-    // kick off the updates, delay so that WASM is set up
-    id = ctx.props.id;
-    _ = zx.client.setTimeout(&fetchStats, 200);
-
-    return (
-        <fragment @allocator={ctx.allocator}>
-            Found {&count} cards in {&ms}ms
-        </fragment>
-    );
-}
 
 pub fn Page(ctx: zx.PageContext) !zx.Component {
     const name = ctx.request.getParam("name") orelse return error.MissingName;
 
-    // NOTE: the allocator passed here has to be thread-safe!!
-    //       will be used in `Thread.spawn` in backend and otherwise we crash (dont ask me how i know)
-
-    // FIXME: for some reason, passing std.heap.smp_allocator here doesn't work
-    //        yet using it directly on backend does... some cross-module boundary thing perhaps
-    const response = try backend.fetch.start(undefined, .{
-        .name = name,
-    });
+    const count = try backend.fetch.run(ctx.allocator, name);
 
     return (
         <div @allocator={ctx.arena}>
-            <Stats @rendering={.client} id={response.id} />
+            Fetched {count} cards
         </div>
     );
 }

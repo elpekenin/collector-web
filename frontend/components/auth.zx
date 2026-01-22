@@ -174,16 +174,15 @@ pub fn Buttons(allocator: zx.Allocator) zx.Component {
     return (
         <div @{allocator}>
             {if (maybe_user_data) |user_data| (
-                <>
-                     Welcome back,
-                    {user_data.username}
+                <div>
+                    Welcome back, {user_data.username}
                     <button {class} onclick={logout}>Log out</button>
-                </>
+                </div>
             ) else (
-                <>
+                <div>
                     <button class=`{class} mr-2` onclick={openLogin}>Log in</button>
                     <button {class} onclick={openSignin}>Sign in</button>
-                </>
+                </div>
             )}
         </div>
     );

@@ -3,6 +3,7 @@ const zx = @import("zx");
 const Collection = @import("../../../components/cards.zx").Collection;
 
 pub fn Page(ctx: zx.PageContext) !zx.Component {
+    const user_id = 1; // TODO: auth proxy
     const name = ctx.request.getParam("name") orelse return error.MissingName;
-    return (<Collection @allocator={ctx.arena} {name} />);
+    return (<Collection @allocator={ctx.arena} {name} {user_id} />);
 }

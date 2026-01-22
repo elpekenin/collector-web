@@ -22,16 +22,6 @@ const AppContext = struct {};
 
 pub const std_options: std.Options = .{
     .log_level = .debug,
-    .log_scope_levels = &.{
-        .{
-            .scope = .db_migrate,
-            .level = .warn,
-        },
-        .{
-            .scope = .fridge,
-            .level = .warn,
-        },
-    },
     .logFn = if (zx.platform == .browser)
         zx.Client.logFn
     else

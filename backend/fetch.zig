@@ -2,50 +2,12 @@
 
 const std = @import("std");
 const Allocator = std.mem.Allocator;
-const log = std.log.scoped(.fetch);
 
-const sdk = @import("sdk").For(.en);
-
-const api = @import("api");
-const options = @import("options");
+const sdk = @import("sdk");
 
 const database = @import("database.zig");
 const Omit = @import("utils.zig").Omit;
 const Card = @import("Card.zig");
-
-const Task = struct {
-    const State = union(enum) {
-        free,
-        running,
-        complete: u64,
-    };
-
-    id: u32,
-    state: State,
-    count: u64,
-    start: i64,
-
-    fn init(id: u32) Task {
-        return .{
-            .state = .running,
-            .id = id,
-            .count = 0,
-            .start = now(),
-        };
-    }
-
-    const none: Task = .{
-        .state = .free,
-        .id = 0,
-        .count = 0,
-        .start = 0,
-    };
-};
-
-const global = struct {
-    var next_id: u32 = 0;
-    var tasks: [options.max_fetch_threads]Task = @splat(.none);
-};
 
 // numbers should never get bigger than u16 (65k years is far away)
 // but we are using u64 to simplify the multiplication (u16 * value causes panic due to overflowing u16)
@@ -64,156 +26,93 @@ fn dateToNum(release_date: []const u8) !u64 {
     return year * 366 + month * 31 + day;
 }
 
-/// from a card brief, store all variants into database
-fn variants(allocator: Allocator, session: *database.Session, brief: sdk.Card.Brief) !usize {
-    const url, const free = if (brief.image) |image|
-        .{ try std.fmt.allocPrint(allocator, "{f}", .{image}), true }
-    else
-        .{ "", false }; // TODO: 404.png or something?
-    defer if (free) allocator.free(url);
-
-    // ignore TCG Pocket cards
-    if (std.mem.indexOf(u8, url, "tcgp")) |_| {
-        return 0;
-    }
-
-    const sdk_card: sdk.Card = try .get(allocator, .{ .id = brief.id });
-    defer sdk_card.deinit();
-
-    const set_id = switch (sdk_card) {
-        inline else => |info| info.set.id,
-    };
-
-    const set: sdk.Set = try .get(allocator, .{
-        .id = set_id,
-    });
-    defer set.deinit();
-
-    const db_card: Omit(Card, "id") = .{
-        .card_id = brief.id,
-        .name = brief.name,
-        .image_url = url,
-        .release_date = try dateToNum(set.releaseDate),
-    };
-
-    if (try session.query(Card).findBy("card_id", db_card.card_id)) |exists| {
-        try session.update(Card, exists.id, db_card);
-    } else {
-        _ = try session.insert(Card, db_card);
-    }
-
-    // TODO: remove this, error out if variants aren't present
-    const card_variants: []const sdk.VariantDetailed = switch (sdk_card) {
-        inline else => |info| info.variant_detailed,
-    } orelse return 1;
-
-    for (card_variants) |variant| {
-        const db_variant: Omit(Card.Variant, "id") = .{
-            .card_id = brief.id,
-            .type = variant.type,
-            .subtype = variant.subtype,
-            .size = variant.size,
-            .stamps = variant.stamp,
-            .foil = variant.foil,
-        };
-
-        if (try session.query(Card.Variant).where("card_id", brief.id).where("type", db_variant.type).findFirst()) |in_db| {
-            try session.update(Card.Variant, in_db.id, db_variant);
-        } else {
-            _ = try session.insert(Card.Variant, db_variant);
-        }
-    }
-
-    return card_variants.len;
-}
-
-fn now() i64 {
-    return std.time.milliTimestamp();
-}
-
-fn msElapsed(since: i64) u64 {
-    return @intCast(now() - since);
-}
-
-fn entrypoint(allocator: Allocator, owned_name: []const u8, task: *Task) !void {
-    defer {
-        allocator.free(owned_name);
-        task.state = .{
-            .complete = msElapsed(task.start),
-        };
-    }
-
+pub fn run(allocator: Allocator, name: []const u8) !usize {
     var session = try database.getSession(allocator);
     defer session.deinit();
 
-    var iterator = sdk.Card.all(allocator, .{
-        .page_size = 250,
-        .where = &.{
-            .like(.name, owned_name),
+    // NOTE: sweet spot is somewhere 1900-1950, don't feel like digging exact value
+    @setEvalBranchQuota(1950);
+
+    const response = try sdk.graphql(
+        allocator,
+        "cards",
+        .{
+            .filters = .{
+                .name = name,
+            },
         },
-    });
+        .{
+            .id = true,
+            .name = true,
+            .image = true,
+            .set = .{
+                .logo = true,
+                // .releaseDate = true,
+            },
+            .variants_detailed = .{
+                .type = true,
+                // .subtype = true,
+                .size = true,
+                .stamps = true,
+                .foil = true,
+            },
+        },
+    );
+    defer response.deinit();
 
-    while (iterator.next() catch null) |briefs| {
-        for (briefs) |brief| {
-            defer brief.deinit();
-            task.count += try variants(allocator, &session, brief);
-        }
-    }
-}
+    const cards = try response.unwrap() orelse return error.NothingFound;
 
-pub fn start(_: Allocator, args: api.fetch.start.Args) !api.fetch.start.Response {
-    const allocator = std.heap.smp_allocator;
-
-    const owned_name = try allocator.dupe(u8, args.name);
-    errdefer allocator.free(owned_name);
-
-    const task = blk: {
-        for (&global.tasks) |*task| {
-            // slot never been used or has already finished
-            switch (task.state) {
-                .free,
-                .complete,
-                => break :blk task,
-
-                .running => {},
+    var count: usize = 0;
+    for (cards) |card| {
+        // skip pocket cards
+        if (card.set.logo) |logo| {
+            if (std.mem.indexOf(u8, logo, "tcgp") != null) {
+                continue;
             }
         }
 
-        return error.TasksExhausted;
-    };
+        const image_url, const free = if (card.image) |url|
+            .{ try std.fmt.allocPrint(allocator, "{s}/high.png", .{url}), true }
+        else
+            .{ "", false };
+        defer if (free) allocator.free(image_url);
 
-    defer global.next_id += 1;
-    task.* = .init(global.next_id);
+        const db_card: Omit(Card, "id") = .{
+            .card_id = card.id,
+            .name = card.name,
+            .image_url = image_url,
+            .release_date = 123, // FIXME: graphql returns null and crashes
+            // .release_date = try dateToNum(card.set.releaseDate),
+        };
 
-    var thread: std.Thread = try .spawn(.{}, entrypoint, .{ allocator, owned_name, task });
-    thread.detach();
+        if (try session.query(Card).findBy("card_id", db_card.card_id)) |exists| {
+            try session.update(Card, exists.id, db_card);
+        } else {
+            _ = try session.insert(Card, db_card);
+        }
 
-    return .{
-        .id = task.id,
-    };
-}
+        count += 1;
 
-pub fn status(allocator: Allocator, args: api.fetch.status.Args) !api.fetch.status.Response {
-    // argument is there so that all APIs have same signature
-    _ = allocator;
+        const variants = card.variants_detailed orelse continue;
+        for (variants) |variant| {
+            const db_variant: Omit(Card.Variant, "id") = .{
+                .card_id = card.id,
+                .type = variant.type,
+                // .subtype = variant.subtype, // FIXME: missing in graphql
+                .size = variant.size,
+                .stamps = variant.stamps,
+                .foil = variant.foil,
+            };
 
-    for (global.tasks) |task| {
-        if (task.id != args.id) continue;
+            if (try session.query(Card.Variant).where("card_id", card.id).where("type", db_variant.type).findFirst()) |in_db| {
+                try session.update(Card.Variant, in_db.id, db_variant);
+            } else {
+                _ = try session.insert(Card.Variant, db_variant);
+            }
 
-        switch (task.state) {
-            .free => {},
-            .running => return .{
-                .count = task.count,
-                .finished = false,
-                .ms_elapsed = msElapsed(task.start),
-            },
-            .complete => |elapsed| return .{
-                .count = task.count,
-                .finished = true,
-                .ms_elapsed = elapsed,
-            },
+            count += 1;
         }
     }
 
-    return error.TaskNotFound;
+    return count;
 }

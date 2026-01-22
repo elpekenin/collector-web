@@ -100,28 +100,3 @@ it("should create an account and log with it", async () => {
 	expect(login.json).toHaveProperty("token");
 	expect(login.json.token).toBeTypeOf("string");
 });
-
-it("should error fetching status of invalid ID", async () => {
-	const status = await callApi("/api/fetch/status", {
-		id: 1234,
-	});
-	expectError(status);
-});
-
-it("should start a fetch task and query its status", async () => {
-	const start = await callApi("/api/fetch/start", {
-		name: "pikachu",
-	});
-	expectSuccess(start);
-	expect(start.json).toHaveProperty("id");
-	expect(start.json.id).toBeTypeOf("number");
-
-	const status = await callApi("/api/fetch/status", {
-		id: start.json.id as number,
-	});
-	expectSuccess(status);
-	expect(status.json).toHaveProperty("count");
-	expect(status.json).toHaveProperty("finished");
-	expect(status.json.finished).toBe(false);
-	expect(status.json).toHaveProperty("ms_elapsed");
-});

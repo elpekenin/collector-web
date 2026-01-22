@@ -27,27 +27,3 @@ pub const logout = struct {
         ok: u1,
     };
 };
-
-pub const fetch = struct {
-    pub const start = struct {
-        pub const Args = struct {
-            name: []const u8,
-        };
-
-        pub const Response = struct {
-            id: u64,
-        };
-    };
-
-    pub const status = struct {
-        pub const Args = struct {
-            id: u64,
-        };
-
-        pub const Response = struct {
-            count: u64,
-            finished: bool,
-            ms_elapsed: u64,
-        };
-    };
-};

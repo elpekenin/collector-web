@@ -3,22 +3,86 @@ const std = @import("std");
 const zx = @import("zx");
 
 const backend = @import("backend");
+const Card = backend.Card;
+
+const Size = struct {
+    width: []const u8,
+    height: []const u8,
+
+    const default: Size = .{
+        .width = "10%",
+        .height = "20%",
+    };
+};
+
+const ImageProps = struct {
+    name: []const u8,
+    url: []const u8,
+    size: Size = .default,
+};
 
 // TODO: details on click?
-pub fn Image(
-    allocator: zx.Allocator,
-    props: struct {
-        card: backend.Card,
-        width: []const u8 = "10%",
-        height: []const u8 = "20%",
-    },
-) zx.Component {
-    const card = props.card;
-
+pub fn Image(allocator: zx.Allocator, props: ImageProps) zx.Component {
     return (
         <div @{allocator} class="flex flex-col items-center">
-            <img src={card.image_url} alt="image not found" aria-label={card.name} width={props.width} height={props.height} class="w-40 h-auto" loading="lazy" />
-            <p class="mt-2 text-center">{card.name}</p>
+            <img src={props.url} alt="image not found" aria-label={props.name} width={props.size.width} height={props.size.height} class="w-40 h-auto" loading="lazy" />
+            <p class="mt-2 text-center">{props.name}</p>
+        </div>
+    );
+}
+
+fn isOwned(owned: []const Card.Variant.Owned, id: @FieldType(Card.Variant, "id")) bool {
+    for (owned) |card| {
+        if (card.variant_id == id) return true;
+    }
+
+    return false;
+}
+
+const VariantsProps = struct {
+    card: Card,
+    owned: []const Card.Variant.Owned = &.{},
+    size: Size = .default,
+};
+
+pub fn Variants(allocator: zx.Allocator, props: VariantsProps) !zx.Component {
+    const variants = try props.card.variants(allocator);
+    defer allocator.free(variants);
+
+    return (
+        <div @allocator={allocator}>
+            <Image name={props.card.name} url={props.card.image_url} size={props.size} />
+
+            {for (variants) |variant| (
+                <div>
+                    Type: {variant.type}
+
+                    Subtype: {variant.subtype}
+
+                    Size: {variant.size}
+
+                    {if (variant.stamps) |stamps| (
+                        <div>
+                            Stamps:
+                            {for (stamps) |stamp| (
+                                <div>
+                                    {stamp}
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    Foil: {variant.foil}
+
+                    {if (isOwned(props.owned, variant.id)) (
+                        "Owned"
+                    ) else (
+                        "Missing"
+                    )}
+
+                    <br />
+                </div>
+            )}
         </div>
     );
 }
@@ -26,26 +90,27 @@ pub fn Image(
 pub fn Collection(
     allocator: zx.Allocator,
     props: struct {
-        user_id: []const u8 = "",
+        user_id: @FieldType(backend.auth.User, "id"),
         name: []const u8,
     },
 ) !zx.Component {
-    const cards = try backend.Card.all(allocator, props.name);
+    const cards = try Card.all(allocator, props.name);
+    defer allocator.free(cards);
+
+    const owned = try Card.Variant.Owned.by(allocator, props.user_id);
+    defer allocator.free(owned);
 
     return (
         <div @{allocator}>
             {if (cards.len == 0) (
-                <>
-                     No cards found with '
-                    {props.name}
-                     ' in their name
+                <div>
+                    No cards found with '{props.name}' in their name
                     <br />
-                     HINT: Try
-                    <a href=`/fetch/{props.name}`>fetching them</a>
-                </>
+                    HINT: Try <a href=`/fetch/{props.name}`>fetching them</a>
+                </div>
             ) else (
                 <div class="grid grid-cols-5 gap-4">
-                    {for (cards) |card| (<Image {card} />)}
+                    {for (cards) |card| (<Variants {card} {owned} />)}
                 </div>
             )}
         </div>

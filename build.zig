@@ -17,7 +17,6 @@ pub fn build(b: *Build) !void {
 
     // private modules
     const options_builder = b.addOptions();
-    addConfig(usize, b, options_builder, "max_fetch_threads", 5);
     addConfig(usize, b, options_builder, "max_awaitable_promises", 5);
     const options = options_builder.createModule();
 

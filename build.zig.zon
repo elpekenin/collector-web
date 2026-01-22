@@ -9,12 +9,12 @@
             .hash = "fridge-0.9.5-3GyIipe6AQCJI6OmD4dEQaWYWyc5Kvx5GNPKAP3L-D6l",
         },
         .sdk = .{
-            .url = "git+https://github.com/tcgdex/zig-sdk#5d45a4e6dfbf011df337bcb88877161d0476c768",
-            .hash = "sdk-0.0.1-WSv1A8bxAADyYl7wSf9KthP7qoqS8sur8kb1nkxMuPrY",
+            .url = "git+https://github.com/tcgdex/zig-sdk#5c45f2dc638a2e459ec5e499f65293f99d97bb7d",
+            .hash = "sdk-0.0.1-WSv1A-YIAQBD--0gC2srBgF4YyUmEM6Wj-V4cLs6pDN4",
         },
         .zx = .{
-            .url = "git+https://github.com/nurulhudaapon/zx#eb47a4b470955215cad9db7a4d03f0617ee9e325",
-            .hash = "zx-0.1.0-dev.589-8okzKkfNggDmF4A6VKEJ6kipzC3PuRvaLribqlTLMPJ4",
+            .url = "git+https://github.com/nurulhudaapon/zx#e53e8f4ac11275351654d5f44abb22988e7d7f80",
+            .hash = "zx-0.1.0-dev.598-8okzKpbzggAaFp1m2pW0HnWMXNuDZtF1eXr-1FefWHNW",
         },
     },
     // project not meant to be used as dependency

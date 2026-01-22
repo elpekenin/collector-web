@@ -21,9 +21,9 @@ const footer_height = 16;
 pub fn Layout(ctx: zx.LayoutContext, children: zx.Component) zx.Component {
     if (wasm.routing.isApi(ctx.request.url)) {
         return (
-            <>
+            <div @allocator={ctx.arena}>
                 {children}
-            </>
+            </div>
         );
     }
 
