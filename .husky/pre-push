@@ -1,3 +1,5 @@
 bun biome ci
 zig build test
-bun test
+
+# TODO: tests with playwright
+# bun test

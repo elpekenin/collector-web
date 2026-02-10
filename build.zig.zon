@@ -5,20 +5,19 @@
     .minimum_zig_version = "0.15.2",
     .dependencies = .{
         .fridge = .{
-            .url = "git+https://github.com/cztomsik/fridge#5b06d09627f4bf6066210a46138f4833777098bf",
-            .hash = "fridge-0.9.5-3GyIipe6AQCJI6OmD4dEQaWYWyc5Kvx5GNPKAP3L-D6l",
+            .url = "git+https://github.com/cztomsik/fridge#d2b20b912a6b001eef6607848cd722e44e0900a6",
+            .hash = "fridge-0.9.5-3GyIigC7AQDCgjNxJiKbpqLPZvF1LTAKK28B7dE-NsbL",
+        },
+        .graphqlz = .{
+            .path = "../graphqlz",
         },
         .sdk = .{
             .url = "git+https://github.com/tcgdex/zig-sdk#87d5798043463aea862d9fd2992b9e187524b614",
             .hash = "sdk-0.0.1-WSv1AyvhAAB-fWr1YquKyTxV8C2WA0ruEj8JDewg1XJn",
         },
-        .ushell = .{
-            .url = "git+https://github.com/elpekenin/ushell#58d9dfea1fc9e261a51760dc695b951c22badfc2",
-            .hash = "ushell-0.0.0-oclY4qWqAADgriPRPH7oxQXkj2i2cKBEEPYpfA-RHgFy",
-        },
         .zx = .{
-            .url = "git+https://github.com/nurulhudaapon/zx#b04696f9794ad699758b6c10bb7ff63d1fa05baf",
-            .hash = "zx-0.1.0-dev.618-8okzKl9KgwB3vcCG6UnuihnUa1yGmhkrJeDEkb2ZIYBp",
+            .url = "git+https://github.com/nurulhudaapon/zx#4864194baaf26c65ce97226003c16765555747b3",
+            .hash = "zx-0.1.0-dev.628-8okzKgJygwCNZveFYXFTJp7brrwGVElSzRr_y2bSRJeJ",
         },
     },
     // project not meant to be used as dependency

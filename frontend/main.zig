@@ -1,9 +1,10 @@
 const std = @import("std");
 const assert = std.debug.assert;
-
 const builtin = @import("builtin");
 
 const zx = @import("zx");
+
+const backend = @import("backend");
 
 const wasm = @import("wasm.zig");
 
@@ -19,7 +20,12 @@ comptime {
     }
 }
 
-const AppContext = struct {};
+const ServerState = struct {};
+pub const ProxyState = struct {
+    user: ?backend.User,
+};
+pub const LayoutCtx = zx.LayoutCtx(ServerState, ProxyState);
+pub const PageCtx = zx.PageCtx(ServerState, ProxyState);
 
 pub const std_options: std.Options = .{
     .log_level = .debug,
@@ -39,12 +45,6 @@ pub const panic = if (zx.platform == .browser)
 else
     std.debug.simple_panic;
 
-const config: zx.App.Config = .{
-    .server = .{
-        .port = 3000,
-    },
-};
-
 pub fn main() !void {
     if (zx.platform == .browser) return;
 
@@ -53,7 +53,15 @@ pub fn main() !void {
 
     const allocator = gpa.allocator();
 
-    const server: *zx.Server(AppContext) = try .init(allocator, config, .{});
+    const server: *zx.Server(ServerState) = try .init(
+        allocator,
+        .{
+            .server = .{
+                .port = 3005,
+            },
+        },
+        .{},
+    );
     defer server.deinit();
 
     server.info();

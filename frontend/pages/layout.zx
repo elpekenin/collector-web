@@ -2,23 +2,18 @@ const std = @import("std");
 
 const zx = @import("zx");
 
+const app = @import("app");
 const backend = @import("backend");
 
-const auth = @import("../components/auth.zx");
+const auth_proxy = @import("proxy.zx");
 const wasm = @import("../wasm.zig");
-
-// zx's component system will import these from here
-// because of using them with `@client={.rendering}`
-// as such, it is not enough to mark them `pub` on "origin"
-pub const AuthButtons = auth.Buttons;
-pub const AuthForm = auth.Form;
 
 const appname = "collector";
 
 const header_height = 16;
 const footer_height = 16;
 
-pub fn Layout(ctx: zx.LayoutContext, children: zx.Component) zx.Component {
+pub fn Layout(ctx: app.LayoutCtx, children: zx.Component) zx.Component {
     if (wasm.routing.isApi(ctx.request.url)) {
         return (
             <div @allocator={ctx.arena}>
@@ -35,24 +30,28 @@ pub fn Layout(ctx: zx.LayoutContext, children: zx.Component) zx.Component {
                 <link rel="icon" href="/favicon.svg" sizes="any" type="image/svg+xml" />
             </head>
 
-            <body class="h-screen bg-primary text-secondary">
-                <header class=`fixed top-0 left-0 w-full h-{header_height} bg-accent2 flex items-center`>
+            <body class="h-screen bg-primary text-secondary flex flex-col">
+                <header class=`h-{header_height} bg-accent2 flex items-center`>
                     <div class="w-1/3">
                         Welcome to <a href="/">{appname}</a>, still under construction!
                     </div>
 
                     <div class="w-2/3 p-2 justify-items-end">
-                        <AuthButtons @rendering={.client} />
+                        {if (ctx.state.user) |user| (
+                            <div>
+                                Welcome back, {user.username}
+                            </div>
+                        ) else (
+                            <a href="/auth">Authenticate</a>
+                        )}
                     </div>
                 </header>
 
-                <AuthForm @rendering={.client} />
-
-                <main class=`w-full h-full pt-{header_height} pb-{footer_height} flex items-center justify-center`>
+                <main class="flex-1 w-full overflow-auto">
                     {children}
                 </main>
 
-                <footer class=`fixed bottom-0 left-0 w-full h-{footer_height} bg-accent2 flex items-center justify-center`>
+                <footer class=`h-{footer_height} bg-accent2 flex items-center justify-center`>
                     Made with love, by <a href="https://github.com/elpekenin">@elpekenin</a>
                 </footer>
                 <script src="/assets/main.js" />

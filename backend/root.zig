@@ -5,7 +5,7 @@
 //!
 //! Regardless, those leaks are still a bad thing, lets try and not make any :)
 
-pub const auth = @import("auth.zig");
+pub const User = @import("User.zig");
 pub const database = @import("database.zig");
 pub const fetch = @import("fetch.zig");
 pub const Card = @import("Card.zig");

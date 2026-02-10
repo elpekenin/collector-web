@@ -1,9 +1,5 @@
 const zx = @import("zx");
 
-pub fn Page(ctx: zx.PageContext) zx.Component {
-    return (
-        <div @allocator={ctx.arena}>
-            Try and visit your collection at `/collection/[name]`
-        </div>
-    );
+pub fn Page(_: zx.PageContext) !zx.Component {
+    return error.Unreachable;
 }

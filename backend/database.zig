@@ -4,6 +4,9 @@ const Allocator = std.mem.Allocator;
 const fr = @import("fridge");
 pub const Session = fr.Session;
 
+pub const Int = i64;
+pub const Id = Int;
+
 fn appDataDir(allocator: Allocator) ![]const u8 {
     var args = try std.process.argsWithAllocator(allocator);
     defer args.deinit();
@@ -14,17 +17,18 @@ fn appDataDir(allocator: Allocator) ![]const u8 {
     return std.fs.getAppDataDir(allocator, exe_name);
 }
 
-const state = struct {
-    var pool: ?fr.Pool(fr.SQLite3) = null;
-};
+var pool: ?fr.Pool(fr.SQLite3) = null;
 
 pub fn getSession(allocator: Allocator) !Session {
-    if (state.pool) |*pool| {
-        return pool.getSession(allocator);
+    if (pool) |*p| {
+        return p.getSession(allocator);
     } else {
-        errdefer state.pool = null;
+        errdefer pool = null;
 
-        const options: fr.SQLite3.Options = if (std.process.hasEnvVar(allocator, "__TESTING__") catch false)
+        const options: fr.SQLite3.Options = if (std.process.hasEnvVar(
+            allocator,
+            "__TESTING__",
+        ) catch false)
             .{
                 .filename = ":memory:",
             }
@@ -35,8 +39,8 @@ pub fn getSession(allocator: Allocator) !Session {
                 .filename = "db.sqlite3",
             };
 
-        state.pool = try .init(allocator, .{ .max_count = 10 }, options);
-        errdefer state.pool.?.deinit();
+        pool = try .init(allocator, .{ .max_count = 10 }, options);
+        errdefer pool.?.deinit();
 
         var session = try getSession(allocator);
         errdefer session.deinit();
@@ -47,7 +51,7 @@ pub fn getSession(allocator: Allocator) !Session {
     }
 }
 
-fn buildQuery(comptime T: type, session: *Session, filters: anytype) fr.Query(T) {
+fn Query(comptime T: type, session: *Session, filters: anytype) fr.Query(T) {
     var query = session.query(T);
 
     const Filters = @TypeOf(filters);
@@ -59,10 +63,18 @@ fn buildQuery(comptime T: type, session: *Session, filters: anytype) fr.Query(T)
     return query;
 }
 
-pub fn findOne(comptime T: type, session: *Session, filters: anytype) !?T {
-    return buildQuery(T, session, filters).findFirst();
+pub fn findOne(
+    comptime T: type,
+    session: *Session,
+    filters: anytype,
+) !?T { // ephor:disable ZA703  // false positive
+    return Query(T, session, filters).findFirst();
 }
 
-pub fn findAll(comptime T: type, session: *Session, filters: anytype) ![]const T {
-    return buildQuery(T, session, filters).findAll();
+pub fn findAll(
+    comptime T: type,
+    session: *Session,
+    filters: anytype,
+) ![]const T { // ephor:disable ZA703  // false positive
+    return Query(T, session, filters).findAll();
 }

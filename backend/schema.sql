@@ -9,9 +9,10 @@ CREATE TABLE IF NOT EXISTS "User" (
 
 CREATE TABLE IF NOT EXISTS "Token" (
     id INTEGER PRIMARY KEY NOT NULL,
+    user_id INTEGER NOT NULL UNIQUE,
     value TEXT NOT NULL,
 
-    FOREIGN KEY(id) REFERENCES User(id)
+    FOREIGN KEY(user_id) REFERENCES User(id)
 ) STRICT;
 
 CREATE TABLE IF NOT EXISTS "Secret" (
@@ -29,7 +30,8 @@ CREATE TABLE IF NOT EXISTS "Card" (
     card_id TEXT NOT NULL UNIQUE,
     name TEXT NOT NULL,
     image_url TEXT,
-    release_date INTEGER NOT NULL,
+    release_date TEXT NOT NULL,
+    cardmarket_id INTEGER,
 
     CHECK (card_id <> ''),
     CHECK (name <> '')
@@ -41,7 +43,7 @@ CREATE TABLE IF NOT EXISTS "Variant" (
     type TEXT NOT NULL,
     subtype TEXT,
     size TEXT,
-    stamps TEXT,
+    stamps BLOB NOT NULL,
     foil TEXT,
 
     FOREIGN KEY(card_id) REFERENCES card(card_id),
@@ -49,8 +51,9 @@ CREATE TABLE IF NOT EXISTS "Variant" (
     CHECK (type <> ''),
     CHECK (subtype IS NULL OR subtype <> ''),
     CHECK (size IS NULL OR size <> ''),
-    CHECK (stamps IS NULL OR stamps <> ''),
-    CHECK (foil IS NULL OR foil <> '')
+    CHECK (foil IS NULL OR foil <> ''),
+
+    CONSTRAINT different UNIQUE (card_id, type, subtype, size, stamps, foil)
 ) STRICT;
 
 CREATE TABLE IF NOT EXISTS "Owned" (

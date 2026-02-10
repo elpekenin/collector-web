@@ -5,10 +5,6 @@ const Step = Build.Step;
 const zx = @import("zx");
 const ZxOptions = zx.ZxInitOptions;
 
-// NOTE: both repl and server executables must have same name
-//       it is used to compute the database's location based on $APPDIR
-const exe_name = "collector-web";
-
 fn addConfig(comptime T: type, b: *Build, options: *Step.Options, name: []const u8, default: T) void {
     const value = b.option(T, name, name) orelse default;
     options.addOption(T, name, value);
@@ -24,11 +20,11 @@ pub fn build(b: *Build) !void {
         // embed SQLite in binary
         .bundle = true,
     });
-    const sdk = b.dependency("sdk", .{
+    const graphqlz = b.dependency("graphqlz", .{ // FIXME: remove after https://github.com/tcgdex/cards-database/pull/1084
         .target = target,
         .optimize = optimize,
     });
-    const ushell = b.dependency("ushell", .{
+    const sdk = b.dependency("sdk", .{
         .target = target,
         .optimize = optimize,
     });
@@ -38,36 +34,17 @@ pub fn build(b: *Build) !void {
     addConfig(usize, b, options_builder, "max_awaitable_promises", 5);
     const options = options_builder.createModule();
 
-    const api = b.createModule(.{
-        .root_source_file = b.path("api/types.zig"),
-        .target = target,
-        .optimize = optimize,
-    });
-
     // backend
     const backend = b.addModule("backend", .{
         .root_source_file = b.path("backend/root.zig"),
         .target = target,
         .optimize = optimize,
         .imports = &.{
-            .{ .name = "api", .module = api },
             .{ .name = "fridge", .module = fridge.module("fridge") },
+            .{ .name = "graphqlz", .module = graphqlz.module("graphqlz") },
             .{ .name = "options", .module = options },
             .{ .name = "sdk", .module = sdk.module("sdk") },
         },
-    });
-    const repl_exe = b.addExecutable(.{
-        .name = exe_name,
-        .root_module = b.createModule(.{
-            .root_source_file = b.path("backend/repl.zig"),
-            .target = target,
-            .optimize = optimize,
-            .imports = &.{
-                .{ .name = "fridge", .module = fridge.module("fridge") },
-                .{ .name = "ushell", .module = ushell.module("ushell") },
-                .{ .name = "sdk", .module = sdk.module("sdk") },
-            },
-        }),
     });
 
     // frontend
@@ -76,14 +53,14 @@ pub fn build(b: *Build) !void {
         .target = target,
         .optimize = optimize,
         .imports = &.{
-            .{ .name = "api", .module = api },
             .{ .name = "backend", .module = backend },
         },
     });
+    frontend.addImport("app", frontend);
 
     // put the server together
     const exe = b.addExecutable(.{
-        .name = exe_name,
+        .name = "collector-web",
         .root_module = frontend,
         // work around self-hosted crashing on some code
         .use_llvm = true,
@@ -118,21 +95,16 @@ pub fn build(b: *Build) !void {
 
     const zx_build = try zx.init(b, exe, zx_options);
 
-    // HACK: make "api" module available to ZX modules
+    // HACK: make module available to ZX modules
     for (&[_]*Build.Step.Compile{ zx_build.zx_exe, zx_build.client_exe orelse @panic("no client exe") }) |executable| {
         const module = executable.root_module.import_table.get("zx") orelse continue;
 
         if (module.import_table.get("zx_meta")) |meta| {
-            meta.addImport("api", api);
             meta.addImport("options", options);
         }
     }
 
     // steps
-    const repl_step = b.step("repl", "run REPL");
-    const run_repl = b.addRunArtifact(repl_exe);
-    repl_step.dependOn(&run_repl.step);
-
     const test_step = b.step("test", "run tests");
     const test_runner: Step.Compile.TestRunner = .{
         .mode = .simple,

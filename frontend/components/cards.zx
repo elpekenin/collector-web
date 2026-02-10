@@ -1,124 +1,108 @@
 const std = @import("std");
+const Allocator = std.mem.Allocator;
 
 const zx = @import("zx");
 
 const backend = @import("backend");
-const Card = backend.Card;
-const Variant = Card.Variant;
-const Owned = Variant.Owned;
 
-const Size = struct {
-    width: []const u8,
-    height: []const u8,
+const Size = union(enum) {
+    pixels: u16,
+    percentage: u7,
 
-    const default: Size = .{
-        .width = "10%",
-        .height = "20%",
-    };
-};
-
-const ImageProps = struct {
-    name: []const u8,
-    url: []const u8,
-    size: Size = .default,
-};
-
-// TODO: details on click?
-pub fn Image(allocator: zx.Allocator, props: ImageProps) zx.Component {
-    return (
-        <div @{allocator} class="flex flex-col items-center">
-            <img src={props.url} alt="image not found" aria-label={props.name} width={props.size.width} height={props.size.height} class="w-40 h-auto" loading="lazy" />
-            <p class="mt-2 text-center">{props.name}</p>
-        </div>
-    );
-}
-
-fn isOwned(owned: []const Owned, id: @FieldType(Card.Variant, "id")) bool {
-    for (owned) |card| {
-        if (card.variant_id == id) return true;
+    pub fn toHtml(self: Size, allocator: Allocator) ![]const u8 {
+        return switch (self) {
+            .pixels => |pixels| std.fmt.allocPrint(allocator, "{}px", .{pixels}),
+            .percentage => |percentage| std.fmt.allocPrint(allocator, "{}%", .{percentage}),
+        };
     }
-
-    return false;
-}
-
-const VariantsProps = struct {
-    card: Card,
-    owned: []const Owned = &.{},
-    size: Size = .default,
 };
 
-pub fn Variants(allocator: zx.Allocator, props: VariantsProps) !zx.Component {
+pub const ImageSize = union(enum) {
+    height: Size,
+    width: Size,
+
+    pub fn toHtml(self: ImageSize, allocator: Allocator) ![]const u8 {
+        return switch (self) {
+            .height => |height| std.fmt.allocPrint(allocator, "height: {s}", .{try height.toHtml(allocator)}),
+            .width => |width| std.fmt.allocPrint(allocator, "width: {s}", .{try width.toHtml(allocator)}),
+        };
+    }
+};
+
+fn title(allocator: std.mem.Allocator, value: anytype) ![]const u8 {
+    const str = @tagName(value);
+    const copy = try allocator.dupe(u8, str);
+
+    const lower = std.ascii.lowerString(copy, str);
+    lower[0] = std.ascii.toUpper(lower[0]);
+
+    return lower;
+}
+
+pub fn Image(
+    allocator: zx.Allocator,
+    props: struct {
+        card: backend.Card,
+        size: ImageSize = .{ .width = .{ .pixels = 150 } },
+    },
+) !zx.Component {
+    return (<img @{allocator} src={props.card.image_url} aria-label={props.card.name} alt="image not found" style={try props.size.toHtml(allocator)} loading="lazy" />);
+}
+
+pub fn Cards(
+    allocator: zx.Allocator,
+    props: struct {
+        cards: []const backend.Card,
+    },
+) !zx.Component {
     var session = try backend.database.getSession(allocator);
     defer session.deinit();
 
-    const variants = try props.card.variants(&session);
-
     return (
-        <div @allocator={allocator}>
-            <Image name={props.card.name} url={props.card.image_url} size={props.size} />
-
-            {for (variants) |variant| (
-                <div>
-                    Type: {variant.type}
-
-                    Subtype: {variant.subtype}
-
-                    Size: {variant.size}
-
-                    {if (variant.stamps) |stamps| (
-                        <div>
-                            Stamps:
-                            {for (stamps) |stamp| (
-                                <div>
-                                    {stamp}
-                                </div>
-                            )}
-                        </div>
+        <div @{allocator}>
+            {if (props.cards.len == 0) "No cards found" else (
+                <div class="grid lg:grid-cols-10 md:grid-cols-8 sm:grid-cols-6 gap-1">
+                    {for (props.cards) |card| (
+                        <a href=`/card/{card.card_id}`>
+                            <Image {card} />
+                        </a>
                     )}
-
-                    Foil: {variant.foil}
-
-                    {if (isOwned(props.owned, variant.id)) (
-                        "Owned"
-                    ) else (
-                        "Missing"
-                    )}
-
-                    <br />
                 </div>
             )}
         </div>
     );
 }
 
-pub fn Collection(
+pub fn Variant(
     allocator: zx.Allocator,
     props: struct {
-        user_id: @FieldType(backend.auth.User, "id"),
-        name: []const u8,
+        variant: backend.Card.Variant,
     },
 ) !zx.Component {
-    var session = try backend.database.getSession(allocator);
-    defer session.deinit();
-
-    const cards = try Card.all(&session, props.name);
-
-    const owned = try backend.database.findAll(Owned, &session, .{
-        .user_id = props.user_id,
-    });
-
     return (
         <div @{allocator}>
-            {if (cards.len == 0) (
-                <div>
-                    No cards found with '{props.name}' in their name
-                    <br />
-                    HINT: Try <a href=`/fetch/{props.name}`>fetching them</a>
-                </div>
-            ) else (
-                <div class="grid grid-cols-5 gap-4">
-                    {for (cards) |card| (<Variants {card} {owned} />)}
-                </div>
+            {try title(allocator, props.variant.type)}
+
+            {if (props.variant.size) |size| if (size != .standard) (
+                <>
+                    {try title(allocator, size)}
+                </>
+            )}
+
+            {if (props.variant.stamps.items.len > 0) (
+                <>
+                    Stamps: {for (props.variant.stamps.items) |stamp| (
+                        <>
+                            {try title(allocator, stamp)}
+                        </>
+                    )}
+                </>
+            )}
+
+            {if (props.variant.foil) |foil| (
+                <>
+                    Foil: {try title(allocator, foil)}
+                </>
             )}
         </div>
     );

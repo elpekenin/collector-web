@@ -57,13 +57,11 @@ fn printOnReject(object: js.Object) !void {
 }
 
 fn onPromiseCompleted(id: Id, success: bool) callconv(wasm.calling_convention) void {
-    const awaitable = blk: {
-        for (&global.awaitables) |*awaitable| {
-            if (awaitable.promise_id == id) {
-                break :blk awaitable;
-            }
+    const awaitable = for (&global.awaitables) |*awaitable| {
+        if (awaitable.promise_id == id) {
+            break awaitable;
         }
-
+    } else {
         log.err("onPromiseComplete received unknown id", .{});
         return;
     };
@@ -115,15 +113,11 @@ pub fn await(promise: js.Object, callbacks: Callbacks) !void {
     const ref: js.Ref = @bitCast(@intFromEnum(promise.value));
     const promise_id = ref.id;
 
-    const awaitable = blk: {
-        for (&global.awaitables) |*awaitable| {
-            if (awaitable.promise_id == null) {
-                break :blk awaitable;
-            }
+    const awaitable = for (&global.awaitables) |*awaitable| {
+        if (awaitable.promise_id == null) {
+            break awaitable;
         }
-
-        return error.AwaitablesExhausted;
-    };
+    } else return error.AwaitablesExhausted;
 
     awaitable.* = .{
         .promise_id = promise_id,

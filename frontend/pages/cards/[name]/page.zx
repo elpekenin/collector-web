@@ -1,0 +1,30 @@
+const std = @import("std");
+
+const zx = @import("zx");
+
+const backend = @import("backend");
+
+const Cards = @import("../../../components/cards.zx").Cards;
+
+pub fn Page(ctx: zx.PageContext) !zx.Component {
+    var session = try backend.database.getSession(ctx.arena);
+    defer session.deinit();
+
+    const name = ctx.request.getParam("name") orelse return error.MissingName;
+
+    const needle = if (std.mem.eql(u8, name, "all"))
+        ""
+    else
+        name;
+
+    const wildcard = try std.fmt.allocPrint(ctx.arena, "%{s}%", .{needle});
+
+    const cards = try session
+        .query(backend.Card)
+        .whereRaw("name LIKE ?", .{wildcard})
+        .orderBy(.release_date, .asc)
+        .orderBy(.card_id, .asc)
+        .findAll();
+
+    return (<Cards @allocator={ctx.arena} {cards} />);
+}

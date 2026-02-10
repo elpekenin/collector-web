@@ -6,28 +6,54 @@ const std = @import("std");
 const Allocator = std.mem.Allocator;
 const log = std.log.scoped(.auth);
 
-const api = @import("api");
-
 const database = @import("database.zig");
+
+const User = @This();
 
 const salt_len = 8;
 const hashed_len = 128;
 const token_len = 32;
 
-const UserId = u64;
+id: database.Id,
+username: []const u8,
 
-pub const User = struct {
-    id: UserId,
+pub const AuthArgs = struct {
     username: []const u8,
+    password: []const u8,
+};
+
+pub const AuthResponse = struct {
+    user: User,
+    token: []const u8,
+
+    pub fn init(
+        allocator: Allocator,
+        session: *database.Session,
+        user_id: database.Id,
+        username: []const u8,
+    ) !AuthResponse {
+        return .{
+            .user = .{
+                .id = user_id,
+                .username = username,
+            },
+            .token = try createTokenFor(
+                allocator,
+                session,
+                user_id,
+            ),
+        };
+    }
 };
 
 const Token = struct {
-    id: UserId,
+    id: database.Id,
+    user_id: database.Id,
     value: []const u8,
 };
 
 const Secret = struct {
-    id: UserId,
+    id: database.Id,
     salt: []const u8,
     hashed_password: []const u8,
 };
@@ -39,30 +65,44 @@ fn hash(password: []const u8, salt: []const u8) ![hashed_len]u8 {
 }
 
 fn randomSlice(allocator: Allocator, len: usize) ![]const u8 {
+    const options = std.ascii.letters;
+
     const slice = try allocator.alloc(u8, len);
-    for (slice) |*c| {
-        c.* = std.crypto.random.intRangeAtMost(u8, '0', 'z');
+    for (slice) |*char| {
+        const index = std.crypto.random.uintLessThan(u8, options.len);
+        char.* = options[index];
     }
     return slice;
 }
 
-fn createTokenFor(allocator: Allocator, session: *database.Session, user_id: u64) ![]const u8 {
+fn createTokenFor(
+    allocator: Allocator,
+    session: *database.Session,
+    user_id: database.Id,
+) ![]const u8 {
     const value = try randomSlice(allocator, token_len);
 
     // remove existing
-    if (try session.find(Token, user_id)) |_| {
-        try session.delete(Token, user_id);
+    if (try database.findOne(
+        Token,
+        session,
+        .{
+            .user_id = user_id,
+        },
+    )) |token| {
+        try session.delete(Token, token.id);
     }
 
-    const token = try session.create(Token, .{
-        .id = user_id,
+    const token_id = try session.insert(Token, .{
+        .user_id = user_id,
         .value = value,
     });
 
+    const token = try session.query(Token).find(token_id) orelse @panic("unreachable");
     return token.value;
 }
 
-pub fn signin(allocator: Allocator, args: api.signin.Args) !api.signin.Response {
+pub fn register(allocator: Allocator, args: AuthArgs) !AuthResponse {
     var session = try database.getSession(allocator);
     defer session.deinit();
 
@@ -100,17 +140,10 @@ pub fn signin(allocator: Allocator, args: api.signin.Args) !api.signin.Response 
         log.err("couldn't delete secret  ({})", .{err});
     };
 
-    return .{
-        .username = args.username,
-        .token = try createTokenFor(
-            allocator,
-            &session,
-            user_id,
-        ),
-    };
+    return .init(allocator, &session, user_id, args.username);
 }
 
-pub fn login(allocator: Allocator, args: api.login.Args) !api.login.Response {
+pub fn login(allocator: Allocator, args: AuthArgs) !AuthResponse {
     var session = try database.getSession(allocator);
     defer session.deinit();
 
@@ -130,34 +163,25 @@ pub fn login(allocator: Allocator, args: api.login.Args) !api.login.Response {
 
     if (!std.mem.eql(u8, &hashed, secret.hashed_password)) return error.InvalidCredentials;
 
-    return .{
-        .username = args.username,
-        .token = try createTokenFor(
-            allocator,
-            &session,
-            user.id,
-        ),
-    };
+    return .init(allocator, &session, user.id, user.username);
 }
 
-pub fn logout(allocator: Allocator, args: api.logout.Args) !api.logout.Response {
+pub fn logout(allocator: Allocator, token_value: []const u8) !void {
     var session = try database.getSession(allocator);
     defer session.deinit();
 
-    const in_db = try database.findOne(Token, &session, .{
-        .value = args.token,
-    });
-
-    if (in_db) |row| {
-        try session.delete(Token, row.id);
+    if (try database.findOne(
+        Token,
+        &session,
+        .{
+            .value = token_value,
+        },
+    )) |token| {
+        try session.delete(Token, token.id);
     }
-
-    return .{
-        .ok = 1,
-    };
 }
 
-pub fn getUser(allocator: Allocator, token_value: []const u8) !?User {
+pub fn get(allocator: Allocator, token_value: []const u8) !?User {
     var session = try database.getSession(allocator);
     defer session.deinit();
 
@@ -166,5 +190,5 @@ pub fn getUser(allocator: Allocator, token_value: []const u8) !?User {
         token_value,
     ) orelse return error.InvalidToken;
 
-    return session.find(User, token.id);
+    return session.find(User, token.user_id);
 }

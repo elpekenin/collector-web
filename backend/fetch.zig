@@ -1,29 +1,117 @@
-//! Functions to update local database with API data
+//! Update local database with API data
 
 const std = @import("std");
+const assert = std.debug.assert;
 const Allocator = std.mem.Allocator;
 
-const sdk = @import("sdk");
+const graphqlz = @import("graphqlz");
 
 const database = @import("database.zig");
 const Omit = @import("utils.zig").Omit;
 const Card = @import("Card.zig");
+const Variant = Card.Variant;
 
-// numbers should never get bigger than u16 (65k years is far away)
-// but we are using u64 to simplify the multiplication (u16 * value causes panic due to overflowing u16)
-fn consume(it: *std.mem.SplitIterator(u8, .scalar)) !u64 {
-    const buf = it.next() orelse return error.BadDateStr;
-    return std.fmt.parseInt(u64, buf, 10);
+const graphql = graphqlz.Client("http://localhost:3000/v3/graphql", @import("graphql-schema.zig"));
+
+fn parseEnum(comptime T: type, str: []const u8) T { // ephor:disable ZA703  // false positive
+    return std.meta.stringToEnum(T, str) orelse {
+        std.log.warn("unknown value '{s}' for {}", .{ str, T });
+        return .unknown;
+    };
 }
 
-fn dateToNum(release_date: []const u8) !u64 {
-    var it = std.mem.splitScalar(u8, release_date, '-');
+fn parseMaybeEnum(comptime T: type, str: ?[]const u8) ?T { // ephor:disable ZA703  // false positive
+    return parseEnum(T, str orelse return null);
+}
 
-    const year = try consume(&it);
-    const month = try consume(&it);
-    const day = try consume(&it);
+fn stampLessThan(_: void, lhs: Variant.Stamp, rhs: Variant.Stamp) bool {
+    return @intFromEnum(lhs) < @intFromEnum(rhs);
+}
 
-    return year * 366 + month * 31 + day;
+fn handleVariant(
+    allocator: Allocator,
+    session: *database.Session,
+    card_id: []const u8,
+    variant: anytype,
+) !void {
+    const stamps: []Variant.Stamp, const free_stamps = if (variant.stamp) |raw_stamps| blk: {
+        const stamps = try allocator.alloc(Variant.Stamp, raw_stamps.len);
+
+        for (raw_stamps, stamps) |str, *stamp| {
+            stamp.* = parseEnum(Variant.Stamp, str);
+        }
+
+        std.mem.sort(Variant.Stamp, stamps, {}, stampLessThan);
+
+        break :blk .{ stamps, true };
+    } else .{ &.{}, false };
+    defer if (free_stamps) allocator.free(stamps);
+
+    const db: Omit(Card.Variant, "id") = .{
+        .card_id = card_id,
+        .type = parseEnum(Variant.Type, variant.type),
+        .subtype = parseMaybeEnum(Variant.Subtype, variant.subtype),
+        .size = parseMaybeEnum(Variant.Size, variant.size),
+        .stamps = .init(stamps),
+        .foil = parseMaybeEnum(Variant.Foil, variant.foil),
+    };
+
+    if (try database.findOne(
+        Card.Variant,
+        session,
+        db,
+    )) |row| {
+        try session.update(Card.Variant, row.id, db);
+    } else {
+        _ = try session.insert(Card.Variant, db);
+    }
+}
+
+fn handleCard(allocator: Allocator, session: *database.Session, card: anytype) !usize {
+    var count: usize = 0;
+
+    const image_url, const free_image_url = if (card.image) |url|
+        .{ try std.fmt.allocPrint(allocator, "{s}/high.png", .{url}), true }
+    else
+        .{ "/card-back.png", false };
+    defer if (free_image_url) allocator.free(image_url);
+
+    const cardmarket_id: ?database.Int = blk: {
+        if (card.pricing) |pricing| {
+            if (pricing.cardmarket) |cardmarket| {
+                if (cardmarket.idProduct) |id| {
+                    break :blk @intCast(id);
+                }
+            }
+        }
+
+        std.log.warn("missing cardmarket_id (card_id: {s})", .{card.id});
+        break :blk null;
+    };
+
+    const db: Omit(Card, "id") = .{
+        .card_id = card.id,
+        .name = card.name,
+        .image_url = image_url,
+        .release_date = card.set.releaseDate orelse "0000-00-00",
+        .cardmarket_id = cardmarket_id,
+    };
+
+    if (try Card.get(session, card.id)) |row| {
+        try session.update(Card, row.id, db);
+    } else {
+        _ = try session.insert(Card, db);
+    }
+
+    count += 1;
+
+    const variants = card.variants_detailed orelse return count;
+    for (variants) |variant| {
+        try handleVariant(allocator, session, card.id, variant);
+        count += 1;
+    }
+
+    return count;
 }
 
 pub fn run(allocator: Allocator, name: []const u8) !usize {
@@ -33,9 +121,9 @@ pub fn run(allocator: Allocator, name: []const u8) !usize {
     // NOTE: sweet spot is somewhere 1900-1950, don't feel like digging exact value
     @setEvalBranchQuota(1950);
 
-    const response = try sdk.graphql.run(
-        allocator,
+    const response = try graphql.query(
         "cards",
+        allocator,
         .{
             .filters = .{
                 .name = name,
@@ -47,14 +135,19 @@ pub fn run(allocator: Allocator, name: []const u8) !usize {
             .image = true,
             .set = .{
                 .logo = true,
-                // .releaseDate = true,
+                .releaseDate = true,
             },
             .variants_detailed = .{
                 .type = true,
-                // .subtype = true,
+                .subtype = true,
                 .size = true,
-                .stamps = true,
+                .stamp = true,
                 .foil = true,
+            },
+            .pricing = .{
+                .cardmarket = .{
+                    .idProduct = true,
+                },
             },
         },
     );
@@ -71,48 +164,7 @@ pub fn run(allocator: Allocator, name: []const u8) !usize {
             }
         }
 
-        const image_url, const free = if (card.image) |url|
-            .{ try std.fmt.allocPrint(allocator, "{s}/high.png", .{url}), true }
-        else
-            .{ "", false };
-        defer if (free) allocator.free(image_url);
-
-        const db_card: Omit(Card, "id") = .{
-            .card_id = card.id,
-            .name = card.name,
-            .image_url = image_url,
-            .release_date = 123, // FIXME: graphql returns null and crashes
-            // .release_date = try dateToNum(card.set.releaseDate),
-        };
-
-        if (try session.query(Card).findBy("card_id", db_card.card_id)) |exists| {
-            try session.update(Card, exists.id, db_card);
-        } else {
-            _ = try session.insert(Card, db_card);
-        }
-
-        count += 1;
-
-        const variants = card.variants_detailed orelse continue;
-        for (variants) |variant| {
-            const data: Omit(Card.Variant, "id") = .{
-                .card_id = card.id,
-                .type = variant.type,
-                // .subtype = variant.subtype, // FIXME: missing in graphql
-                .size = variant.size,
-                .stamps = variant.stamps,
-                .foil = variant.foil,
-            };
-
-            const in_db = try database.findOne(Card.Variant, &session, data);
-            if (in_db) |row| {
-                try session.update(Card.Variant, row.id, data);
-            } else {
-                _ = try session.insert(Card.Variant, data);
-            }
-
-            count += 1;
-        }
+        count += try handleCard(allocator, &session, card);
     }
 
     return count;
