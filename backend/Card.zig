@@ -1,4 +1,5 @@
 const std = @import("std");
+const assert = std.debug.assert;
 const Allocator = std.mem.Allocator;
 
 const fr = @import("fridge");
@@ -8,21 +9,23 @@ const database = @import("database.zig");
 const Card = @This();
 
 id: database.Id,
-card_id: []const u8,
+tcgdex_id: []const u8,
+set_id: database.Id,
 name: []const u8,
 image_url: []const u8,
-release_date: []const u8, // used to display cards chronologically
 cardmarket_id: ?database.Int,
 
-pub fn get(session: *database.Session, card_id: []const u8) !?Card {
-    return database.findOne(Card, session, .{
-        .card_id = card_id,
-    });
-}
+pub const Set = struct {
+    pub const sql_table_name = "Set_";
+
+    id: database.Id,
+    name: []const u8,
+    release_date: []const u8,
+};
 
 pub const Variant = struct {
     id: database.Id,
-    card_id: []const u8,
+    card_id: database.Id,
     type: Type,
     subtype: ?Subtype = null,
     size: ?Size = null,
@@ -30,9 +33,10 @@ pub const Variant = struct {
     foil: ?Foil = null,
 
     const Stamps = struct {
-        items: []const Stamp,
-
         const separator: u8 = 255;
+        const empty_array: u8 = 254;
+
+        items: []const Stamp,
 
         pub fn init(items: []const Stamp) Stamps {
             return .{
@@ -48,7 +52,9 @@ pub const Variant = struct {
 
             const writer = &aw.writer;
 
-            for (self.items) |stamp| {
+            if (self.items.len == 0) {
+                try writer.print("{c}", .{empty_array});
+            } else for (self.items) |stamp| {
                 try writer.print("{t}{c}", .{ stamp, separator });
             }
 
@@ -62,6 +68,11 @@ pub const Variant = struct {
                 .blob => |blob| blob,
                 else => return error.InvalidValueTag,
             };
+
+            if (blob[0] == empty_array) {
+                assert(blob.len == 1);
+                return .empty;
+            }
 
             var stamps: std.ArrayList(Stamp) = .empty;
             defer stamps.deinit(allocator);
@@ -145,6 +156,6 @@ pub const Variant = struct {
 
 pub fn variants(self: *const Card, session: *database.Session) ![]const Variant {
     return database.findAll(Variant, session, .{
-        .card_id = self.card_id,
+        .card_id = self.id,
     });
 }

@@ -22,8 +22,7 @@ pub fn Page(ctx: zx.PageContext) !zx.Component {
     const cards = try session
         .query(backend.Card)
         .whereRaw("name LIKE ?", .{wildcard})
-        .orderBy(.release_date, .asc)
-        .orderBy(.card_id, .asc)
+        .orderBy(.id, .asc)
         .findAll();
 
     return (<Cards @allocator={ctx.arena} {cards} />);

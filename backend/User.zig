@@ -190,5 +190,10 @@ pub fn get(allocator: Allocator, token_value: []const u8) !?User {
         token_value,
     ) orelse return error.InvalidToken;
 
-    return session.find(User, token.user_id);
+    const user = try session.find(User, token.user_id) orelse return null;
+
+    return .{
+        .id = user.id,
+        .username = try allocator.dupe(u8, user.username),
+    };
 }

@@ -4,6 +4,8 @@ const Allocator = std.mem.Allocator;
 const fr = @import("fridge");
 pub const Session = fr.Session;
 
+const Omit = @import("meta.zig").Omit;
+
 pub const Int = i64;
 pub const Id = Int;
 
@@ -63,18 +65,20 @@ fn Query(comptime T: type, session: *Session, filters: anytype) fr.Query(T) {
     return query;
 }
 
-pub fn findOne(
-    comptime T: type,
-    session: *Session,
-    filters: anytype,
-) !?T { // ephor:disable ZA703  // false positive
+pub fn findOne(comptime T: type, session: *Session, filters: anytype) !?T {
     return Query(T, session, filters).findFirst();
 }
 
-pub fn findAll(
-    comptime T: type,
-    session: *Session,
-    filters: anytype,
-) ![]const T { // ephor:disable ZA703  // false positive
+pub fn findAll(comptime T: type, session: *Session, filters: anytype) ![]const T {
     return Query(T, session, filters).findAll();
+}
+
+/// update or insert a value
+pub fn save(comptime T: type, session: *Session, data: Omit(T, "id")) !@FieldType(T, "id") {
+    if (try findOne(T, session, data)) |row| {
+        try session.update(T, row.id, data);
+        return row.id;
+    }
+
+    return session.insert(T, data);
 }

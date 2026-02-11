@@ -7,20 +7,20 @@ const Allocator = std.mem.Allocator;
 const graphqlz = @import("graphqlz");
 
 const database = @import("database.zig");
-const Omit = @import("utils.zig").Omit;
+const Omit = @import("meta.zig").Omit;
 const Card = @import("Card.zig");
 const Variant = Card.Variant;
 
 const graphql = graphqlz.Client("http://localhost:3000/v3/graphql", @import("graphql-schema.zig"));
 
-fn parseEnum(comptime T: type, str: []const u8) T { // ephor:disable ZA703  // false positive
+fn parseEnum(comptime T: type, str: []const u8) T {
     return std.meta.stringToEnum(T, str) orelse {
         std.log.warn("unknown value '{s}' for {}", .{ str, T });
         return .unknown;
     };
 }
 
-fn parseMaybeEnum(comptime T: type, str: ?[]const u8) ?T { // ephor:disable ZA703  // false positive
+fn parseMaybeEnum(comptime T: type, str: ?[]const u8) ?T {
     return parseEnum(T, str orelse return null);
 }
 
@@ -31,9 +31,9 @@ fn stampLessThan(_: void, lhs: Variant.Stamp, rhs: Variant.Stamp) bool {
 fn handleVariant(
     allocator: Allocator,
     session: *database.Session,
-    card_id: []const u8,
+    card_id: database.Id,
     variant: anytype,
-) !void {
+) !database.Id {
     const stamps: []Variant.Stamp, const free_stamps = if (variant.stamp) |raw_stamps| blk: {
         const stamps = try allocator.alloc(Variant.Stamp, raw_stamps.len);
 
@@ -47,24 +47,14 @@ fn handleVariant(
     } else .{ &.{}, false };
     defer if (free_stamps) allocator.free(stamps);
 
-    const db: Omit(Card.Variant, "id") = .{
+    return database.save(Card.Variant, session, .{
         .card_id = card_id,
         .type = parseEnum(Variant.Type, variant.type),
         .subtype = parseMaybeEnum(Variant.Subtype, variant.subtype),
         .size = parseMaybeEnum(Variant.Size, variant.size),
         .stamps = .init(stamps),
         .foil = parseMaybeEnum(Variant.Foil, variant.foil),
-    };
-
-    if (try database.findOne(
-        Card.Variant,
-        session,
-        db,
-    )) |row| {
-        try session.update(Card.Variant, row.id, db);
-    } else {
-        _ = try session.insert(Card.Variant, db);
-    }
+    });
 }
 
 fn handleCard(allocator: Allocator, session: *database.Session, card: anytype) !usize {
@@ -75,6 +65,11 @@ fn handleCard(allocator: Allocator, session: *database.Session, card: anytype) !
     else
         .{ "/card-back.png", false };
     defer if (free_image_url) allocator.free(image_url);
+
+    const set_id = try database.save(Card.Set, session, .{
+        .name = card.set.name,
+        .release_date = card.set.releaseDate orelse "0000-00-00",
+    });
 
     const cardmarket_id: ?database.Int = blk: {
         if (card.pricing) |pricing| {
@@ -89,25 +84,19 @@ fn handleCard(allocator: Allocator, session: *database.Session, card: anytype) !
         break :blk null;
     };
 
-    const db: Omit(Card, "id") = .{
-        .card_id = card.id,
+    const card_id = try database.save(Card, session, .{
+        .tcgdex_id = card.id,
+        .set_id = set_id,
         .name = card.name,
         .image_url = image_url,
-        .release_date = card.set.releaseDate orelse "0000-00-00",
         .cardmarket_id = cardmarket_id,
-    };
-
-    if (try Card.get(session, card.id)) |row| {
-        try session.update(Card, row.id, db);
-    } else {
-        _ = try session.insert(Card, db);
-    }
+    });
 
     count += 1;
 
     const variants = card.variants_detailed orelse return count;
     for (variants) |variant| {
-        try handleVariant(allocator, session, card.id, variant);
+        _ = try handleVariant(allocator, session, card_id, variant);
         count += 1;
     }
 
@@ -135,6 +124,7 @@ pub fn run(allocator: Allocator, name: []const u8) !usize {
             .image = true,
             .set = .{
                 .logo = true,
+                .name = true,
                 .releaseDate = true,
             },
             .variants_detailed = .{

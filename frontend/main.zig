@@ -53,15 +53,13 @@ pub fn main() !void {
 
     const allocator = gpa.allocator();
 
-    const server: *zx.Server(ServerState) = try .init(
-        allocator,
-        .{
-            .server = .{
-                .port = 3005,
-            },
+    const zx_config: zx.App.Config = .{
+        .server = .{
+            .port = 3005,
         },
-        .{},
-    );
+    };
+
+    const server: *zx.Server(ServerState) = try .init(allocator, zx_config, .{});
     defer server.deinit();
 
     server.info();

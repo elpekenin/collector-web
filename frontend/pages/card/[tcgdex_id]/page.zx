@@ -39,19 +39,23 @@ fn foo(ctx: zx.EventContext) void {
 }
 
 pub fn Page(ctx: app.PageCtx) !zx.Component {
-    const card_id = ctx.request.getParam("card_id") orelse return error.MissingName;
+    const tcgdex_id = ctx.request.getParam("tcgdex_id") orelse return error.MissingTcgdexId;
 
     var session = try backend.database.getSession(ctx.arena);
     defer session.deinit();
 
-    const card = try Card.get(&session, card_id) orelse return error.UnknownCardId;
+    const card = try backend.database.findOne(Card, &session, .{
+        .tcgdex_id = tcgdex_id,
+    }) orelse return error.UnknownCard;
 
     const variants = try card.variants(&session);
 
     const img_size: cards.ImageSize = .{ .width = .{ .pixels = 400 } };
 
     return (
-        <div @allocator={ctx.allocator} class="w-full flex items-center">
+        <div @allocator={ctx.arena} class="w-full flex items-center">
+            <div class="text-7xl">{card.name}</div>
+
             <a href=`https://www.cardmarket.com/Pokemon/Products?idProduct={card.cardmarket_id}`>
                 <Image {card} size={img_size} />
             </a>
@@ -59,8 +63,6 @@ pub fn Page(ctx: app.PageCtx) !zx.Component {
             <span class="pr-10" />
 
             <div class="flex-col">
-                <div class="text-7xl">{card.name}</div>
-
                 <div class="justify-center">
                     {for (variants) |variant| (
                         <>
@@ -74,8 +76,8 @@ pub fn Page(ctx: app.PageCtx) !zx.Component {
                                     Mark as
                                     {switch (try isOwned(&session, variant, ctx.state.user)) {
                                         .not_logged => @panic("unreachable"),
-                                        .yes => "not owned",
-                                        .no => "owned",
+                                        .yes => " not owned",
+                                        .no => " owned",
                                     }}
                                 </button>
                             )}

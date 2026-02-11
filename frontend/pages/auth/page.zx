@@ -55,7 +55,7 @@ pub fn Page(ctx: app.PageCtx) !zx.Component {
 
     // TODO: send current window location in form, to redirect back to same page
     return (
-        <div @allocator={ctx.allocator} class="bg-secondary text-primary rounded-lg shadow-xl p-6 min-w-75 max-w-[95vw]">
+        <div @allocator={ctx.arena} class="bg-secondary text-primary rounded-lg shadow-xl p-6 min-w-75 max-w-[95vw]">
             {if (ctx.state.user) |user| (
                 <div>
                     <form method="post">

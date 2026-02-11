@@ -9,7 +9,8 @@
             .hash = "fridge-0.9.5-3GyIigC7AQDCgjNxJiKbpqLPZvF1LTAKK28B7dE-NsbL",
         },
         .graphqlz = .{
-            .path = "../graphqlz",
+            .url = "git+https://github.com/elpekenin/graphqlz#4ffcede1727f84682e4330e1154fe37a0d2cb01b",
+            .hash = "graphqlz-0.0.1-QhOWgFKhAAACXQPfr9yYEhX9uKAnCaFzyAV6ofsxyjtb",
         },
         .sdk = .{
             .url = "git+https://github.com/tcgdex/zig-sdk#87d5798043463aea862d9fd2992b9e187524b614",
