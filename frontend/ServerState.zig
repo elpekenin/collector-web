@@ -11,7 +11,7 @@ fn appDataDir(allocator: std.mem.Allocator) ![]const u8 {
     defer args.deinit();
 
     const exe_path = args.next() orelse @panic("missing exe arg");
-    const exe_name = std.fs.path.basename(exe_path);
+    const exe_name = std.fs.path.stem(exe_path);
 
     return std.fs.getAppDataDir(allocator, exe_name);
 }
