@@ -25,10 +25,9 @@ pub fn Page(ctx: app.PageCtx) !zx.Component {
         .whereRaw("name LIKE ?", .{wildcard})
         .findAll();
 
-    const sets = try database.findAll(database.Set, &session, .{});
+    const sets = try session.query(database.Set).findAll();
 
     const cards = try database.Card.sort(ctx.arena, out_of_order, sets);
-    defer ctx.arena.free(cards);
 
     return (<Cards @allocator={ctx.arena} {cards} />);
 }

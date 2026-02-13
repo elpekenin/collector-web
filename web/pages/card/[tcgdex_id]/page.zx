@@ -45,30 +45,34 @@ pub fn Page(ctx: app.PageCtx) !zx.Component {
 
     const maybe_user = try ctx.state.getUser(&session);
 
-    const card = try database.findOne(database.Card, &session, .{
-        .tcgdex_id = tcgdex_id,
-    }) orelse return error.UnknownCard;
+    const card = try session
+        .query(database.Card)
+        .findBy("tcgdex_id", tcgdex_id) orelse return error.UnknownCard;
 
-    const set = try database.findOne(database.Set, &session, .{
-        .id = card.set_id,
-    }) orelse return error.UnknownSet;
+    const set = try session
+        .query(database.Set)
+        .findBy("tcgdex_id", card.set_id) orelse return error.UnknownSet;
 
-    const variants = try card.variants(&session);
+    const variants = try card.getVariants(&session);
 
     const img_size: cards.ImageSize = .{ .width = .{ .pixels = 400 } };
 
     return (
         <div @allocator={ctx.arena} class="w-full items-center">
             <p class="text-7xl">
-                {card.name} ({set.name})
+                {card.name} (<a href=`/set/{set.tcgdex_id}`>{set.name}</a>)
             </p>
 
             <span class="pb-10" />
 
             <div class="w-full h-full flex items-center">
-                <a href=`https://www.cardmarket.com/Pokemon/Products?idProduct={card.cardmarket_id}`>
+                {if (card.cardmarket_id) |id| (
+                    <a href=`https://www.cardmarket.com/Pokemon/Products?idProduct={id}` title="go to cardmarket">
+                        <Image {card} size={img_size} />
+                    </a>
+                ) else (
                     <Image {card} size={img_size} />
-                </a>
+                )}
 
                 <span class="pr-10" />
 

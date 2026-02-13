@@ -9,8 +9,9 @@ tcgdex_id: []const u8,
 name: []const u8,
 release_date: []const u8,
 
-pub fn cards(self: *const Set, session: *database.Session) ![]const database.Card {
-    return database.findAll(database.Card, session, .{
-        .set_id = self.id,
-    });
+pub fn getCards(self: *const Set, session: *database.Session) ![]const database.Card {
+    return session
+        .query(database.Card)
+        .where("set_id", self.tcgdex_id)
+        .findAll();
 }

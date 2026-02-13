@@ -4,13 +4,17 @@
     .fingerprint = 0x247f847689263162,
     .minimum_zig_version = "0.15.2",
     .dependencies = .{
+        .ephor = .{
+            .url = "git+https://bitbucket.org/rhyoslabs/ephor/src/main/#c86dd026a806599e85f651fc070b8570f0f2a413",
+            .hash = "ephor-0.11.3-p-Eoi6KUDABNfSr0mumFsy29TettgtfQpNrqtaraSL4D",
+        },
         .fridge = .{
             .url = "git+https://github.com/cztomsik/fridge#d2b20b912a6b001eef6607848cd722e44e0900a6",
             .hash = "fridge-0.9.5-3GyIigC7AQDCgjNxJiKbpqLPZvF1LTAKK28B7dE-NsbL",
         },
         .graphqlz = .{
-            .url = "git+https://github.com/elpekenin/graphqlz#4ffcede1727f84682e4330e1154fe37a0d2cb01b",
-            .hash = "graphqlz-0.0.1-QhOWgFKhAAACXQPfr9yYEhX9uKAnCaFzyAV6ofsxyjtb",
+            .url = "git+https://github.com/elpekenin/graphqlz#7da5557589f6cffaf0a1696e961aa09546a83a50",
+            .hash = "graphqlz-0.0.1-QhOWgLChAACVtC_4cnnIGo1xLAQlOknFqnGzJvj_OqT_",
         },
         .sdk = .{
             .url = "git+https://github.com/tcgdex/zig-sdk#87d5798043463aea862d9fd2992b9e187524b614",

@@ -27,7 +27,7 @@ CREATE TABLE IF NOT EXISTS "Secret" (
 --------
 CREATE TABLE IF NOT EXISTS "Set_" (
     id INTEGER PRIMARY KEY NOT NULL,
-    tcgdex_id TEXT NOT NULL,
+    tcgdex_id TEXT UNIQUE NOT NULL,
     name TEXT NOT NULL,
     release_date TEXT NOT NULL,
 
@@ -38,21 +38,18 @@ CREATE TABLE IF NOT EXISTS "Set_" (
 
 CREATE TABLE IF NOT EXISTS "Card" (
     id INTEGER PRIMARY KEY NOT NULL UNIQUE,
-    tcgdex_id TEXT NOT NULL,
-    set_id INTEGER NOT NULL,
+    tcgdex_id TEXT UNIQUE NOT NULL,
+    set_id TEXT NOT NULL,
     name TEXT NOT NULL,
-    image_url TEXT,
+    image_url TEXT NOT NULL,
     cardmarket_id INTEGER,
 
-    CHECK (tcgdex_id <> ''),
-    CHECK (name <> ''),
-
-    FOREIGN KEY(set_id) REFERENCES Set_(id)
+    FOREIGN KEY(set_id) REFERENCES Set_(tcgdex_id)
 ) STRICT;
 
 CREATE TABLE IF NOT EXISTS "Variant" (
     id INTEGER PRIMARY KEY NOT NULL,
-    card_id INTEGER NOT NULL,
+    card_id TEXT NOT NULL,
     type TEXT NOT NULL,
     subtype TEXT,
     size TEXT,
@@ -64,7 +61,7 @@ CREATE TABLE IF NOT EXISTS "Variant" (
     CHECK (size IS NULL OR size <> ''),
     CHECK (foil IS NULL OR foil <> ''),
 
-    FOREIGN KEY(card_id) REFERENCES Card(id),
+    FOREIGN KEY(card_id) REFERENCES Card(tcgdex_id),
 
     CONSTRAINT different UNIQUE (card_id, type, subtype, size, stamps, foil)
 ) STRICT;
@@ -78,5 +75,7 @@ CREATE TABLE IF NOT EXISTS "Owned" (
     CHECK (owned == 0 OR owned == 1),
 
     FOREIGN KEY(user_id) REFERENCES user(id),
-    FOREIGN KEY(variant_id) REFERENCES variant(id)
+    FOREIGN KEY(variant_id) REFERENCES variant(id),
+
+    CONSTRAINT different UNIQUE (user_id, variant_id)
 ) STRICT;

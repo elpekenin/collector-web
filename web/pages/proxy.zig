@@ -36,10 +36,7 @@ const redirects: []const Redirect = &.{
 };
 
 pub fn Proxy(ctx: *zx.ProxyContext) !void {
-    const state: app.ProxyState = .{
-        .token = ctx.request.cookies.get(cookie_name),
-    };
-
+    const state: app.ProxyState = .init(ctx, cookie_name);
     ctx.state(state);
 
     for (redirects) |redirect| {

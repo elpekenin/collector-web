@@ -13,14 +13,13 @@ pub fn Page(ctx: app.PageCtx) !zx.Component {
     var session = try ctx.app.pool.getSession(ctx.arena);
     defer session.deinit();
 
-    const set = try database.findOne(database.Set, &session, .{
-        .tcgdex_id = tcgdex_id,
-    }) orelse return error.UnknownSet;
+    const set = try session
+        .query(database.Set)
+        .findBy("tcgdex_id", tcgdex_id) orelse return error.UnknownSet;
 
-    const out_of_order = try set.cards(&session);
+    const out_of_order = try set.getCards(&session);
 
     const cards = try database.Card.sort(ctx.arena, out_of_order, &.{});
-    defer ctx.arena.free(cards);
 
     return (<Cards @allocator={ctx.arena} {cards} />);
 }

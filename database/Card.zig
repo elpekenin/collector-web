@@ -8,7 +8,7 @@ const Card = @This();
 
 id: database.Id,
 tcgdex_id: []const u8,
-set_id: database.Id,
+set_id: []const u8,
 name: []const u8,
 image_url: []const u8,
 cardmarket_id: ?database.Int,
@@ -23,16 +23,16 @@ fn stringLessThan(lhs: []const u8, rhs: []const u8) bool {
 
 fn cardLessThanInner(sets: []const database.Set, lhs: Card, rhs: Card) !bool {
     // compare tcgdex id, not great due to lack of leading '0' for padding
-    if (lhs.set_id == rhs.set_id) {
+    if (std.mem.eql(u8, lhs.set_id, rhs.set_id)) {
         return stringLessThan(lhs.tcgdex_id, rhs.tcgdex_id);
     }
 
     const lhs_set = for (sets) |set| {
-        if (lhs.set_id == set.id) break set;
+        if (std.mem.eql(u8, lhs.set_id, set.tcgdex_id)) break set;
     } else return error.SetNotFound;
 
     const rhs_set = for (sets) |set| {
-        if (rhs.set_id == set.id) break set;
+        if (std.mem.eql(u8, rhs.set_id, set.tcgdex_id)) break set;
     } else return error.SetNotFound;
 
     return stringLessThan(lhs_set.release_date, rhs_set.release_date);
@@ -51,8 +51,9 @@ pub fn sort(allocator: Allocator, cards: []const Card, sets: []const database.Se
     return sorted;
 }
 
-pub fn variants(self: *const Card, session: *database.Session) ![]const database.Variant {
-    return database.findAll(database.Variant, session, .{
-        .card_id = self.id,
-    });
+pub fn getVariants(self: *const Card, session: *database.Session) ![]const database.Variant {
+    return session
+        .query(database.Variant)
+        .where("card_id", self.tcgdex_id)
+        .findAll();
 }

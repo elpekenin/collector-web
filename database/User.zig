@@ -82,18 +82,7 @@ fn createTokenFor(
 ) ![]const u8 {
     const value = try randomSlice(allocator, token_len);
 
-    // remove existing
-    if (try database.findOne(
-        Token,
-        session,
-        .{
-            .user_id = user_id,
-        },
-    )) |token| {
-        try session.delete(Token, token.id);
-    }
-
-    const token_id = try session.insert(Token, .{
+    const token_id = try database.save(Token, session, .{
         .user_id = user_id,
         .value = value,
     });
@@ -145,9 +134,9 @@ pub fn register(session: *database.Session, args: AuthArgs) !AuthResponse {
 pub fn login(session: *database.Session, args: AuthArgs) !AuthResponse {
     const allocator = session.arena;
 
-    const user = try database.findOne(User, session, .{
-        .username = args.username,
-    }) orelse return error.UserNotFound;
+    const user = try session
+        .query(User)
+        .findBy("username", args.username) orelse return error.UserNotFound;
 
     const secret = try session.find(Secret, user.id) orelse return error.SecretNotFound;
 
@@ -165,15 +154,11 @@ pub fn login(session: *database.Session, args: AuthArgs) !AuthResponse {
 }
 
 pub fn logout(session: *database.Session, token_value: []const u8) !void {
-    if (try database.findOne(
-        Token,
-        session,
-        .{
-            .value = token_value,
-        },
-    )) |token| {
-        try session.delete(Token, token.id);
-    }
+    try session
+        .query(Token)
+        .where("value", token_value)
+        .delete()
+        .exec();
 }
 
 pub fn get(session: *database.Session, token_value: []const u8) !?User {

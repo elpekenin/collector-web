@@ -1,2 +1,2 @@
 [files]
-extend-exclude = ["backend/graphql-schema.zig"]
+extend-exclude = ["cli/graphql-schema.zig"]

@@ -17,8 +17,6 @@ pub const Set = @import("Set.zig");
 pub const User = @import("User.zig");
 pub const Variant = @import("Variant.zig");
 
-pub const schema = @embedFile("schema.sql");
-
 fn Omit(comptime T: type, comptime field_name: []const u8) type {
     const info = @typeInfo(T).@"struct";
 
@@ -39,7 +37,40 @@ fn Omit(comptime T: type, comptime field_name: []const u8) type {
     return @Type(.{ .@"struct" = copy });
 }
 
-fn Query(comptime T: type, session: *Session, filters: anytype) fr.Query(T) {
+pub fn createPool(allocator: Allocator) !*Pool {
+    const data_dir = try std.fs.getAppDataDir(allocator, "collector-web");
+    defer allocator.free(data_dir);
+
+    const options: Options = if (std.process.hasEnvVar(
+        allocator,
+        "__TESTING__",
+    ) catch false)
+        .{
+            .filename = ":memory:",
+        }
+    else
+        .{
+            // NOTE: not freeing because it seems like sqlite doesn't dupe it
+            .dir = data_dir,
+            .filename = "db.sqlite3",
+        };
+
+    const pool = try allocator.create(Pool);
+    errdefer allocator.destroy(pool);
+
+    pool.* = try .init(allocator, .{ .max_count = 16 }, options);
+    errdefer pool.deinit();
+
+    var session = try pool.getSession(allocator);
+    defer session.deinit();
+
+    std.log.info("database at {?s}/{s}", .{ options.dir, options.filename });
+    try migrate(&session, @embedFile("schema.sql"));
+
+    return pool;
+}
+
+fn findOne(comptime T: type, session: *Session, filters: anytype) !?T {
     var query = session.query(T);
 
     const Filters = @TypeOf(filters);
@@ -48,20 +79,17 @@ fn Query(comptime T: type, session: *Session, filters: anytype) fr.Query(T) {
         query = query.where(field.name, val);
     }
 
-    return query;
-}
-
-pub fn findOne(comptime T: type, session: *Session, filters: anytype) !?T {
-    return Query(T, session, filters).findFirst();
-}
-
-pub fn findAll(comptime T: type, session: *Session, filters: anytype) ![]const T {
-    return Query(T, session, filters).findAll();
+    return query.findFirst();
 }
 
 /// update or insert a value
 pub fn save(comptime T: type, session: *Session, data: Omit(T, "id")) !@FieldType(T, "id") {
-    if (try findOne(T, session, data)) |row| {
+    const maybe_row = if (@hasField(T, "tcgdex_id"))
+        try session.query(T).findBy("tcgdex_id", data.tcgdex_id)
+    else
+        try findOne(T, session, data);
+
+    if (maybe_row) |row| {
         try session.update(T, row.id, data);
         return row.id;
     }
