@@ -14,10 +14,12 @@ pub const Int = i64;
 pub const Card = @import("Card.zig");
 pub const Owned = @import("Owned.zig");
 pub const Set = @import("Set.zig");
+pub const Species = @import("Species.zig");
+pub const Tracked = @import("Tracked.zig");
 pub const User = @import("User.zig");
 pub const Variant = @import("Variant.zig");
 
-fn Omit(comptime T: type, comptime field_name: []const u8) type {
+pub fn Omit(comptime T: type, comptime field_name: []const u8) type {
     const info = @typeInfo(T).@"struct";
 
     var copy = info;
@@ -76,23 +78,36 @@ fn findOne(comptime T: type, session: *Session, filters: anytype) !?T {
     const Filters = @TypeOf(filters);
     inline for (@typeInfo(Filters).@"struct".fields) |field| {
         const val = @field(filters, field.name);
-        query = query.where(field.name, val);
+
+        if (@typeInfo(field.type) == .optional and val == null) {
+            query = query.whereRaw(field.name ++ " IS NULL", .{});
+        } else {
+            query = query.where(field.name, val);
+        }
     }
 
     return query.findFirst();
 }
 
+pub const SaveResult = union(enum) {
+    noop: Id,
+    inserted: Id,
+};
+
 /// update or insert a value
-pub fn save(comptime T: type, session: *Session, data: Omit(T, "id")) !@FieldType(T, "id") {
+pub fn save(comptime T: type, session: *Session, data: Omit(T, "id")) !SaveResult {
     const maybe_row = if (@hasField(T, "tcgdex_id"))
-        try session.query(T).findBy("tcgdex_id", data.tcgdex_id)
+        try session
+            .query(T)
+            .findBy("tcgdex_id", data.tcgdex_id)
     else
         try findOne(T, session, data);
 
     if (maybe_row) |row| {
-        try session.update(T, row.id, data);
-        return row.id;
+        return .{ .noop = row.id };
     }
 
-    return session.insert(T, data);
+    return .{
+        .inserted = try session.insert(T, data),
+    };
 }

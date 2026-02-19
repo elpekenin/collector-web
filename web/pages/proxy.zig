@@ -30,9 +30,7 @@ const Redirect = struct {
 };
 
 const redirects: []const Redirect = &.{
-    .init("/", "/cards/all/"),
-    .init("/cards", "/cards/all/"),
-    .init("/cards/", "/cards/all/"),
+    .init("/", "/collection/"),
 };
 
 pub fn Proxy(ctx: *zx.ProxyContext) !void {

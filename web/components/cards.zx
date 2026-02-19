@@ -29,16 +29,6 @@ pub const ImageSize = union(enum) {
     }
 };
 
-fn title(allocator: std.mem.Allocator, value: anytype) ![]const u8 {
-    const str = @tagName(value);
-    const copy = try allocator.dupe(u8, str);
-
-    const lower = std.ascii.lowerString(copy, str);
-    lower[0] = std.ascii.toUpper(lower[0]);
-
-    return lower;
-}
-
 pub fn Image(
     allocator: zx.Allocator,
     props: struct {
@@ -65,41 +55,6 @@ pub fn Cards(
                         </a>
                     )}
                 </div>
-            )}
-        </div>
-    );
-}
-
-pub fn Variant(
-    allocator: zx.Allocator,
-    props: struct {
-        variant: database.Variant,
-    },
-) !zx.Component {
-    return (
-        <div @{allocator}>
-            {try title(allocator, props.variant.type)}
-
-            {if (props.variant.size) |size| if (size != .standard) (
-                <>
-                    {try title(allocator, size)}
-                </>
-            )}
-
-            {if (props.variant.stamps.items.len > 0) (
-                <>
-                    Stamps: {for (props.variant.stamps.items) |stamp| (
-                        <>
-                            {try title(allocator, stamp)}
-                        </>
-                    )}
-                </>
-            )}
-
-            {if (props.variant.foil) |foil| (
-                <>
-                    Foil: {try title(allocator, foil)}
-                </>
             )}
         </div>
     );

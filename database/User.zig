@@ -82,13 +82,23 @@ fn createTokenFor(
 ) ![]const u8 {
     const value = try randomSlice(allocator, token_len);
 
-    const token_id = try database.save(Token, session, .{
-        .user_id = user_id,
-        .value = value,
-    });
+    const maybe_row = try session
+        .query(Token)
+        .where("user_id", user_id)
+        .findFirst();
 
-    const token = try session.query(Token).find(token_id) orelse @panic("unreachable");
-    return token.value;
+    if (maybe_row) |row| {
+        try session.update(Token, row.id, .{
+            .value = value,
+        });
+    } else {
+        _ = try session.insert(Token, .{
+            .user_id = user_id,
+            .value = value,
+        });
+    }
+
+    return value;
 }
 
 pub fn register(session: *database.Session, args: AuthArgs) !AuthResponse {

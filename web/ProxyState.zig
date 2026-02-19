@@ -4,32 +4,18 @@ const zx = @import("zx");
 
 const database = @import("database");
 
+const routing = @import("routing.zig");
+
 const ProxyState = @This();
 
 token: ?[]const u8,
-env: Environment,
-
-const Environment = enum {
-    unknown,
-    development,
-    deployed,
-
-    fn fromUrl(maybe_url: ?[]const u8) Environment {
-        return if (maybe_url) |url|
-            if (std.mem.indexOf(u8, url, "localhost") != null)
-                .development
-            else
-                .deployed
-        else
-            .unknown;
-    }
-};
+env: routing.Environment,
 
 // TODO: use Authorization header?
 pub fn init(ctx: *zx.ProxyContext, cookie_name: []const u8) ProxyState {
     return .{
         .token = ctx.request.cookies.get(cookie_name),
-        .env = .fromUrl(ctx.request.headers.get("host")),
+        .env = routing.getEnvironment(ctx.request),
     };
 }
 

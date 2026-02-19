@@ -3,7 +3,6 @@ const Build = std.Build;
 const Step = Build.Step;
 
 const zx = @import("zx");
-const ZxOptions = zx.ZxInitOptions;
 
 fn addConfig(comptime T: type, b: *Build, options: *Step.Options, name: []const u8, default: T) void {
     const value = b.option(T, name, name) orelse default;
@@ -52,40 +51,40 @@ pub fn build(b: *Build) !void {
         .use_llvm = true,
     });
 
-    const zx_options: ZxOptions = .{
+    var zx_build = try zx.init(b, exe, .{
+        .app = .{
+            .path = b.path("web"),
+        },
         .cli = .{
             .steps = .{
                 .serve = "web",
                 .dev = "dev",
             },
         },
-        .plugins = &.{
-            zx.plugins.tailwind(b, .{
-                .bin = b.path("node_modules/.bin/tailwindcss"),
-                .input = b.path("web/_/styles.css"),
-                .output = b.path("{outdir}/public/styles.css"),
-            }),
-            zx.plugins.esbuild(b, .{
-                .bin = b.path("node_modules/.bin/esbuild"),
-                .input = b.path("web/main.ts"),
-                .output = b.path("{outdir}/assets/main.js"),
-            }),
-        },
-        .app = .{
-            .path = b.path("web"),
-        },
-    };
+    });
 
-    _ = try zx.init(b, exe, zx_options);
+    zx_build.addPlugin(zx.plugins.tailwind(b, .{
+        .bin = b.path("node_modules/.bin/tailwindcss"),
+        .input = b.path("web/_/styles.css"),
+        .output = zx_build.assetsdir.path(b, "styles.css"),
+    }));
+
+    zx_build.addPlugin(zx.plugins.esbuild(b, .{
+        .bin = b.path("node_modules/.bin/esbuild"),
+        .input = b.path("web/main.ts"),
+        .output = zx_build.assetsdir.path(b, "main.js"),
+    }));
 
     // HACK: make module available to ZX modules
-    // for (&[_]*Build.Step.Compile{ zx_build.zx_exe, zx_build.client_exe orelse @panic("no client exe") }) |executable| {
-    //     const module = executable.root_module.import_table.get("zx") orelse continue;
+    for (&[_]*Build.Step.Compile{
+        zx_build.client.?.exe,
+    }) |executable| {
+        const module = executable.root_module.import_table.get("zx") orelse continue;
 
-    //     if (module.import_table.get("zx_meta")) |meta| {
-    //         meta.addImport("options", options);
-    //     }
-    // }
+        if (module.import_table.get("zx_meta")) |meta| {
+            meta.addImport("options", options);
+        }
+    }
 
     const cli = b.createModule(.{
         .root_source_file = b.path("cli/main.zig"),
@@ -111,13 +110,15 @@ pub fn build(b: *Build) !void {
         },
     });
 
+    const cli_exe = b.addExecutable(.{
+        .name = "cli",
+        .root_module = cli,
+        .use_llvm = true,
+    });
+    b.installArtifact(cli_exe);
+
     const cli_step = b.step("cli", "run db-management CLI");
-    const cli_run = b.addRunArtifact(
-        b.addExecutable(.{
-            .name = "cli",
-            .root_module = cli,
-        }),
-    );
+    const cli_run = b.addRunArtifact(cli_exe);
     if (b.args) |args| cli_run.addArgs(args);
     cli_step.dependOn(&cli_run.step);
 

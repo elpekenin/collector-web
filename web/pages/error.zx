@@ -4,7 +4,7 @@ const log = std.log.scoped(.@"error-handler");
 
 const zx = @import("zx");
 
-const wasm = @import("../wasm.zig");
+const routing = @import("../routing.zig");
 
 fn stackTrace(allocator: std.mem.Allocator) ![]const u8 {
     var text: std.Io.Writer.Allocating = .init(allocator);
@@ -25,7 +25,7 @@ fn stackTrace(allocator: std.mem.Allocator) ![]const u8 {
 pub fn Error(ctx: zx.ErrorContext) zx.Component {
     const trace = stackTrace(ctx.arena) catch "";
 
-    if (wasm.routing.isApi(ctx.request.url)) {
+    if (routing.isApi(ctx.request.url)) {
         log.err("APIs shouldn't go through pages' processing: {s}", .{ctx.request.url});
     }
 
@@ -33,7 +33,14 @@ pub fn Error(ctx: zx.ErrorContext) zx.Component {
         <div @allocator={ctx.arena} class="text-xl">
             <span class="text-accent3">Internal server error: {@errorName(ctx.err)}</span>
 
-            <pre>{trace}</pre>
+            <br />
+
+            {if (routing.getEnvironment(ctx.request) == .development) (
+                <>
+                    <pre>{trace}</pre>
+                    <br />
+                </>
+            )}
 
             <a href={ctx.request.url}>Reload page</a>
         </div>

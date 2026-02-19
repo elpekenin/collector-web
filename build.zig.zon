@@ -5,8 +5,8 @@
     .minimum_zig_version = "0.15.2",
     .dependencies = .{
         .ephor = .{
-            .url = "git+https://bitbucket.org/rhyoslabs/ephor/src/main/#c86dd026a806599e85f651fc070b8570f0f2a413",
-            .hash = "ephor-0.11.3-p-Eoi6KUDABNfSr0mumFsy29TettgtfQpNrqtaraSL4D",
+            .url = "git+https://bitbucket.org/rhyoslabs/ephor#179432647ec4701ead5d1dff88446554be2e5bd9",
+            .hash = "ephor-0.11.5-p-Eoi1bEDADWrpB5k2Ulr01sExLfGHsBXzzseYzeAtzk",
         },
         .fridge = .{
             .url = "git+https://github.com/cztomsik/fridge#d2b20b912a6b001eef6607848cd722e44e0900a6",
@@ -21,8 +21,8 @@
             .hash = "sdk-0.0.1-WSv1AyvhAAB-fWr1YquKyTxV8C2WA0ruEj8JDewg1XJn",
         },
         .zx = .{
-            .url = "git+https://github.com/nurulhudaapon/zx#db7be2a0150fabb10fafc52cc10715d962009bd1",
-            .hash = "zx-0.1.0-dev.651-8okzKtjD6QAKF1jd-8rkZ2jaXa39CS3OYE_fB95WaiLv",
+            .url = "git+https://github.com/nurulhudaapon/zx#81f2967708b01825be6d0755956bcd6ae36f3bbb",
+            .hash = "zx-0.1.0-dev.678-8okzKn_e6QC097B6_euNUz5yFLR-S6b8vqV3zY-Q_vvh",
         },
     },
     // project not meant to be used as dependency

@@ -17,4 +17,3 @@ else
 pub const api = @import("wasm/api.zig");
 pub const html = @import("wasm/html.zig");
 pub const js = @import("wasm/js.zig");
-pub const routing = @import("wasm/routing.zig");

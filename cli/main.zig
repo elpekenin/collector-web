@@ -14,53 +14,33 @@ const database = @import("database");
 
 const graphql = graphqlz.Client("https://tcgdex.elpekenin.dev/v3/graphql", @import("graphql-schema.zig"));
 
-fn strToEnum(comptime T: type, str: []const u8) T {
-    return std.meta.stringToEnum(T, str) orelse {
-        std.log.warn("unknown value '{s}' for {}", .{ str, T });
-        return .unknown;
-    };
-}
-
-fn maybeStrToEnum(comptime T: type, str: ?[]const u8) ?T {
-    return strToEnum(T, str orelse return null);
-}
-
-fn stampLessThan(_: void, lhs: database.Variant.Stamp, rhs: database.Variant.Stamp) bool {
-    return std.mem.order(u8, @tagName(lhs), @tagName(rhs)) == .lt;
+fn strToEnum(comptime T: type, str: ?[]const u8) T {
+    return std.meta.stringToEnum(
+        T,
+        str orelse return .none,
+    ) orelse return .unknown;
 }
 
 fn saveVariant(
     allocator: Allocator,
     session: *database.Session,
-    card_id: []const u8,
+    card_tcgdex_id: []const u8,
     variant: anytype,
-) !database.Id {
-    const stamps: []database.Variant.Stamp, const free_stamps = if (variant.stamp) |raw_stamps| blk: {
-        const stamps = try allocator.alloc(database.Variant.Stamp, raw_stamps.len);
-
-        for (raw_stamps, stamps) |str, *stamp| {
-            stamp.* = strToEnum(database.Variant.Stamp, str);
-        }
-
-        std.mem.sort(database.Variant.Stamp, stamps, {}, stampLessThan);
-
-        break :blk .{ stamps, true };
-    } else .{ &.{}, false };
-    defer if (free_stamps) allocator.free(stamps);
+) !database.SaveResult {
+    const stamps: database.Variant.Stamps = try .parse(allocator, variant.stamp orelse &.{});
+    defer stamps.deinit(allocator);
 
     return database.save(database.Variant, session, .{
-        .card_id = card_id,
+        .card_id = card_tcgdex_id,
         .type = strToEnum(database.Variant.Type, variant.type),
-        .subtype = maybeStrToEnum(database.Variant.Subtype, variant.subtype),
-        .size = maybeStrToEnum(database.Variant.Size, variant.size),
-        .stamps = .init(stamps),
-        .foil = maybeStrToEnum(database.Variant.Foil, variant.foil),
+        .subtype = strToEnum(database.Variant.Subtype, variant.subtype),
+        .size = strToEnum(database.Variant.Size, variant.size),
+        .stamps = stamps,
+        .foil = strToEnum(database.Variant.Foil, variant.foil),
     });
 }
 
 fn saveCard(allocator: Allocator, session: *database.Session, card: anytype) !usize {
-    var count: usize = 0;
-
     const image_url, const free_image_url = if (card.image) |url|
         .{ try std.fmt.allocPrint(allocator, "{s}/high.png", .{url}), true }
     else
@@ -82,24 +62,30 @@ fn saveCard(allocator: Allocator, session: *database.Session, card: anytype) !us
             }
         }
 
-        std.log.warn("missing cardmarket_id (card_id: {s})", .{card.id});
         break :blk null;
     };
 
-    _ = try database.save(database.Card, session, .{
+    const card_result = try database.save(database.Card, session, .{
         .tcgdex_id = card.id,
         .set_id = card.set.id,
         .name = card.name,
         .image_url = image_url,
         .cardmarket_id = cardmarket_id,
+        .dex_ids = .{ .items = card.dexId orelse &.{} },
     });
 
-    count += 1;
+    const variants = card.variants_detailed orelse return switch (card_result) {
+        .noop => 0,
+        .inserted => 1,
+    };
 
-    const variants = card.variants_detailed orelse return count;
+    var count: usize = 0;
     for (variants) |variant| {
-        _ = try saveVariant(allocator, session, card.id, variant);
-        count += 1;
+        const variant_result = try saveVariant(allocator, session, card.id, variant);
+        switch (variant_result) {
+            .noop => {},
+            .inserted => count += 1,
+        }
     }
 
     return count;
@@ -134,6 +120,7 @@ pub fn main() !void {
         },
         .{
             .id = true,
+            .dexId = true,
             .name = true,
             .image = true,
             .set = .{
@@ -170,7 +157,25 @@ pub fn main() !void {
         }
 
         count += try saveCard(allocator, &session, card);
+
+        // if name is a single word (no spaces), store dexId-name mapping
+        if (std.mem.count(u8, card.name, " ") == 0) {
+            const dexIds = card.dexId orelse continue;
+            std.debug.assert(dexIds.len == 1);
+
+            const exists = try session
+                .query(database.Species)
+                .where("pokedex", @intCast(dexIds[0]))
+                .exists();
+
+            if (exists) continue;
+
+            _ = try database.save(database.Species, &session, .{
+                .pokedex = @intCast(dexIds[0]),
+                .name = card.name,
+            });
+        }
     }
 
-    std.log.info("found {} variants", .{count});
+    std.log.info("found {} new variants", .{count});
 }
