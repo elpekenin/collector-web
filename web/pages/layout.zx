@@ -77,7 +77,6 @@ pub fn Layout(ctx: app.LayoutCtx, children: zx.Component) zx.Component {
                 <footer class=`h-{footer_height} bg-accent2 flex items-center justify-center`>
                     Made with love, by <a href="https://github.com/elpekenin">@elpekenin</a>
                 </footer>
-                <script src="/assets/main.js" />
             </body>
         </html>
     );

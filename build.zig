@@ -61,6 +61,9 @@ pub fn build(b: *Build) !void {
                 .dev = "dev",
             },
         },
+        .client = .{
+            .jsglue_href = "/assets/main.js",
+        },
     });
 
     zx_build.addPlugin(zx.plugins.tailwind(b, .{
@@ -76,9 +79,8 @@ pub fn build(b: *Build) !void {
     }));
 
     // HACK: make module available to ZX modules
-    for (&[_]*Build.Step.Compile{
-        zx_build.client.?.exe,
-    }) |executable| {
+    const modules: []const *Build.Step.Compile = &.{zx_build.client.?.exe};
+    for (modules) |executable| {
         const module = executable.root_module.import_table.get("zx") orelse continue;
 
         if (module.import_table.get("zx_meta")) |meta| {

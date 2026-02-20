@@ -57,14 +57,13 @@ fn onClick(ctx: zx.EventContext) void {
     onClickInner(ctx) catch {};
 }
 
-pub fn Button(
-    allocator: zx.Allocator,
-    props: struct {
-        is_tracked: bool,
-        pokedex: i64, // should be database.Int but WASM can't "link" `database` module
-        text: []const u8,
-    },
-) !zx.Component {
+const ButtonProps = struct {
+    is_tracked: bool,
+    pokedex: i64, // should be database.Int but WASM can't "link" `database` module
+    text: []const u8,
+};
+
+pub fn Button(allocator: zx.Allocator, props: ButtonProps) !zx.Component {
     // NOTE: `/` in URL will be added in onClick's handler
     const class, const url = if (props.is_tracked)
         .{ "text-green-600", "/api/untrack" }
@@ -75,6 +74,19 @@ pub fn Button(
         <button @{allocator} onclick={onClick} {class} {url} pokedex={props.pokedex}>
             {props.text}
         </button>
+    );
+}
+
+pub fn Buttons(
+    allocator: zx.Allocator,
+    props: struct { buttons: []const ButtonProps },
+) !zx.Component {
+    return (
+        <div @{allocator} class="flex flex-col">
+            {for (props.buttons) |button| (
+                <Button {..button} />
+            )}
+        </div>
     );
 }
 
@@ -101,15 +113,22 @@ pub fn Page(ctx: app.PageCtx) !zx.Component {
         .orderBy(.pokedex, .asc)
         .findAll();
 
+    const buttons = try ctx.arena.alloc(ButtonProps, all_species.len);
+    for (all_species, 0..) |species, i| {
+        buttons[i] = .{
+            .is_tracked = isTracked(species, all_tracked),
+            .pokedex = species.pokedex,
+            .text = species.name,
+        };
+    }
+
     return (
         <div @allocator={ctx.allocator} class="flex flex-col">
             <a href="/progress">
                 See your progress
             </a>
 
-            {for (all_species) |species| (
-                <Button @rendering={.client} is_tracked={isTracked(species, all_tracked)} pokedex={species.pokedex} text={species.name} />
-            )}
+            <Buttons @rendering={.client} {buttons} />
         </div>
     );
 }

@@ -55,14 +55,13 @@ fn onClick(ctx: zx.EventContext) void {
     onClickInner(ctx) catch {};
 }
 
-pub fn Button(
-    allocator: zx.Allocator,
-    props: struct {
-        is_owned: bool,
-        variant_id: i64, // should be database.Id but WASM can't "link" `database` module
-        variant_text: []const u8,
-    },
-) !zx.Component {
+const ButtonProps = struct {
+    is_owned: bool,
+    text: []const u8,
+    variant_id: i64, // should be database.Id but WASM can't "link" `database` module
+};
+
+pub fn Button(allocator: zx.Allocator, props: ButtonProps) !zx.Component {
     // NOTE: `/` in URL will be added in onClick's handler
     const class, const url = if (props.is_owned)
         .{ "text-green-600", "/api/missing" }
@@ -71,8 +70,23 @@ pub fn Button(
 
     return (
         <button @{allocator} onclick={onClick} {class} {url} variant_id={props.variant_id}>
-            {props.variant_text}
+            {props.text}
         </button>
+    );
+}
+
+pub fn Buttons(
+    allocator: zx.Allocator,
+    props: struct {
+        buttons: []const ButtonProps,
+    },
+) !zx.Component {
+    return (
+        <div @allocator={allocator} class="flex flex-col">
+            {for (props.buttons) |button| (
+                <Button {..button} />
+            )}
+        </div>
     );
 }
 
@@ -82,7 +96,13 @@ pub fn Page(ctx: app.PageCtx) !zx.Component {
     var session = try ctx.app.pool.getSession(ctx.arena);
     defer session.deinit();
 
-    const maybe_user = try ctx.state.getUser(&session);
+    const user = try ctx.state.getUser(&session) orelse {
+        return (
+            <>
+                Must be logged in to access this page
+            </>
+        );
+    };
 
     const card = try session
         .query(database.Card)
@@ -95,6 +115,15 @@ pub fn Page(ctx: app.PageCtx) !zx.Component {
     const variants = try card.getVariants(&session);
 
     const img_size: cards.ImageSize = .{ .width = .{ .pixels = 400 } };
+
+    const buttons = try ctx.allocator.alloc(ButtonProps, variants.len);
+    for (variants, 0..) |variant, i| {
+        buttons[i] = .{
+            .is_owned = try variant.ownedBy(&session, user.id),
+            .variant_id = variant.id,
+            .text = try variant.toString(ctx.arena),
+        };
+    }
 
     return (
         <div @allocator={ctx.arena} class="w-full items-center">
@@ -115,19 +144,7 @@ pub fn Page(ctx: app.PageCtx) !zx.Component {
 
                 <span class="pr-10" />
 
-                <div class="flex flex-col justify-center">
-                    {for (variants) |variant| (
-                        <div>
-                            {if (maybe_user) |user| (
-                                <Button @rendering={.client} is_owned={try variant.ownedBy(&session, user.id)} variant_id={variant.id} variant_text={try variant.toString(ctx.arena)} />
-                            ) else (
-                                <>
-                                    {try variant.toString(ctx.arena)}
-                                </>
-                            )}
-                        </div>
-                    )}
-                </div>
+                <Buttons @rendering={.client} {buttons} />
             </div>
         </div>
     );
