@@ -179,3 +179,38 @@ pub fn get(session: *database.Session, token_value: []const u8) !?User {
 
     return session.find(User, token.user_id);
 }
+
+pub fn getTrackedCards(self: *const User, session: *database.Session) ![]const database.Card {
+    const species = try session
+        .query(database.Tracked)
+        .where("user_id", self.id)
+        .where("tracked", true)
+        .findAll();
+
+    if (species.len == 0) {
+        return &.{};
+    }
+
+    var query = session.query(database.Card);
+    for (species) |tracked| {
+        const wildcard = try std.fmt.allocPrint(session.arena, "%{c}{}{c}%", .{
+            database.Card.DexIds.separator,
+            tracked.species_dex,
+            database.Card.DexIds.separator,
+        });
+
+        query = query.orWhereRaw("dex_ids LIKE ?", .{wildcard});
+    }
+
+    return query.findAll();
+}
+
+pub fn isTracking(self: *const User, session: *database.Session, species: database.Species) !bool {
+    const tracked = try session
+        .query(database.Tracked)
+        .where("user_id", self.id)
+        .where("species_dex", species.pokedex)
+        .findFirst() orelse return false;
+
+    return tracked.tracked;
+}

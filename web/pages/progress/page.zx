@@ -6,6 +6,36 @@ const app = @import("app");
 const database = @import("database");
 
 const Cards = @import("../../components/cards.zx").Cards;
+pub const CopyText = @import("../../components/copy.zx").CopyText;
+
+fn textSummary(
+    allocator: std.mem.Allocator,
+    session: *database.Session,
+    user_id: database.Id,
+    cards: []const database.Card,
+) ![]const u8 {
+    var aw: std.Io.Writer.Allocating = .init(allocator);
+    defer aw.deinit();
+
+    const writer = &aw.writer;
+
+    for (cards) |card| {
+        try writer.print("{s}({s})\n", .{ card.name, card.tcgdex_id });
+
+        const variants = try card.getVariants(session);
+        for (variants) |variant| {
+            const owned = try variant.ownedBy(session, user_id);
+            if (owned) continue;
+
+            const variant_str = try variant.toString(allocator);
+            defer allocator.free(variant_str);
+
+            try writer.print("  {s}\n", .{variant_str});
+        }
+    }
+
+    return aw.toOwnedSlice();
+}
 
 pub fn Page(ctx: app.PageCtx) !zx.Component {
     var session = try ctx.app.pool.getSession(ctx.arena);
@@ -19,31 +49,14 @@ pub fn Page(ctx: app.PageCtx) !zx.Component {
         );
     };
 
-    const all_tracked = try session
-        .query(database.Tracked)
-        .where("user_id", user.id)
-        .where("tracked", true)
-        .findAll();
-
-    if (all_tracked.len == 0) {
+    const cards = try user.getTrackedCards(&session);
+    if (cards.len == 0) {
         return (
             <div>
-                You have no tracked species
+                You are not tracking any species
             </div>
         );
     }
-
-    var query = session.query(database.Card);
-    for (all_tracked) |tracked| {
-        const wildcard = try std.fmt.allocPrint(ctx.arena, "%{c}{}{c}%", .{
-            database.Card.DexIds.separator,
-            tracked.species_dex,
-            database.Card.DexIds.separator,
-        });
-
-        query = query.orWhereRaw("dex_ids LIKE ?", .{wildcard});
-    }
-    const cards = try query.findAll();
 
     const sets = try session
         .query(database.Set)
@@ -51,5 +64,12 @@ pub fn Page(ctx: app.PageCtx) !zx.Component {
 
     const sorted = try database.Card.sort(ctx.arena, cards, sets);
 
-    return (<Cards cards={sorted} />);
+    const summary = try textSummary(ctx.arena, &session, user.id, sorted);
+
+    return (
+        <>
+            <CopyText @rendering={.client} display="Copy missing cards to clipboard" content={summary} />
+            <Cards cards={sorted} />
+        </>
+    );
 }

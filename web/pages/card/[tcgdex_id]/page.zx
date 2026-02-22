@@ -3,6 +3,7 @@ const std = @import("std");
 const zx = @import("zx");
 const js = zx.Client.js;
 
+const api = @import("api");
 const app = @import("app");
 const database = @import("database");
 
@@ -17,21 +18,48 @@ const Owned = enum {
     no,
 };
 
-fn onCompletion(_: js.Object) !void {
-    const window: js.Object = try js.global.get(js.Object, "window");
-    const location: js.Object = try window.get(js.Object, "location");
-    try location.call(void, "reload", .{});
+// const text = await response.text()
+fn onText(text: js.Object) !void {
+    const slice = try text.value.string(wasm.allocator);
+
+    const parsed: std.json.Parsed(api.Owned) = try std.json.parseFromSlice(
+        api.Owned,
+        wasm.allocator,
+        slice,
+        .{},
+    );
+    defer parsed.deinit();
+
+    const element: js.Object = .{
+        .value = @enumFromInt(parsed.value.js_ref),
+    };
+
+    try element.set("className", js.string(styleFor(parsed.value.owned)));
+    try element.call(
+        void,
+        "setAttribute",
+        .{
+            js.string("base_url"),
+            js.string(urlFor(parsed.value.owned)),
+        },
+    );
+}
+
+// const response = await fetch("/api")
+fn onResponse(response: js.Object) !void {
+    try wasm.text(response, onText);
 }
 
 fn onClickInner(ctx: zx.EventContext) !void {
     const target = ctx.getEvent().getTarget() orelse return;
 
-    const url = try target.callAlloc(
+    const base_url = try target.callAlloc(
         js.String,
         wasm.allocator,
         "getAttribute",
-        .{js.string("url")},
+        .{js.string("base_url")},
     );
+    defer wasm.allocator.free(base_url);
 
     const variant_id = try target.callAlloc(
         js.String,
@@ -39,15 +67,16 @@ fn onClickInner(ctx: zx.EventContext) !void {
         "getAttribute",
         .{js.string("variant_id")},
     );
+    defer wasm.allocator.free(variant_id);
 
-    const api = try std.fmt.allocPrint(
+    const url = try std.fmt.allocPrint(
         wasm.allocator,
-        "{s}/{s}",
-        .{ url, variant_id },
+        "{s}/{s}/{}",
+        .{ base_url, variant_id, @intFromEnum(target.value) },
     );
-    defer wasm.allocator.free(api);
+    defer wasm.allocator.free(url);
 
-    try wasm.api.execute(api, onCompletion);
+    try wasm.fetch(url, onResponse);
 }
 
 fn onClick(ctx: zx.EventContext) void {
@@ -55,21 +84,30 @@ fn onClick(ctx: zx.EventContext) void {
     onClickInner(ctx) catch {};
 }
 
+fn urlFor(is_owned: bool) []const u8 {
+    // NOTE: `/` in URL will be added in onClick's handler
+    return if (is_owned)
+        "/api/missing"
+    else
+        "/api/owned";
+}
+
+fn styleFor(is_owned: bool) []const u8 {
+    return if (is_owned)
+        "text-green-600"
+    else
+        "text-red-600";
+}
+
 const ButtonProps = struct {
     is_owned: bool,
     text: []const u8,
-    variant_id: i64, // should be database.Id but WASM can't "link" `database` module
+    variant_id: api.database.Id,
 };
 
 pub fn Button(allocator: zx.Allocator, props: ButtonProps) !zx.Component {
-    // NOTE: `/` in URL will be added in onClick's handler
-    const class, const url = if (props.is_owned)
-        .{ "text-green-600", "/api/missing" }
-    else
-        .{ "text-red-600", "/api/owned" };
-
     return (
-        <button @{allocator} onclick={onClick} {class} {url} variant_id={props.variant_id}>
+        <button @{allocator} onclick={onClick} class={styleFor(props.is_owned)} base_url={urlFor(props.is_owned)} variant_id={props.variant_id}>
             {props.text}
         </button>
     );

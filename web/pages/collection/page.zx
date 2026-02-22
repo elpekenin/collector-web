@@ -3,37 +3,54 @@ const std = @import("std");
 const zx = @import("zx");
 const js = zx.Client.js;
 
+const api = @import("api");
 const app = @import("app");
 const database = @import("database");
 
 const wasm = @import("../../wasm.zig");
 
-// TODO: move to database.Tracked
-fn isTracked(species: database.Species, all_tracked: []const database.Tracked) bool {
-    for (all_tracked) |tracked| {
-        if (tracked.species_dex == species.pokedex) {
-            return tracked.tracked;
-        }
-    }
+// const text = await response.text()
+fn onText(text: js.Object) !void {
+    const slice = try text.value.string(wasm.allocator);
 
-    return false;
+    const parsed: std.json.Parsed(api.Tracked) = try std.json.parseFromSlice(
+        api.Tracked,
+        wasm.allocator,
+        slice,
+        .{},
+    );
+    defer parsed.deinit();
+
+    const element: js.Object = .{
+        .value = @enumFromInt(parsed.value.js_ref),
+    };
+
+    try element.set("className", js.string(styleFor(parsed.value.tracked)));
+    try element.call(
+        void,
+        "setAttribute",
+        .{
+            js.string("base_url"),
+            js.string(urlFor(parsed.value.tracked)),
+        },
+    );
 }
 
-fn onCompletion(_: js.Object) !void {
-    const window: js.Object = try js.global.get(js.Object, "window");
-    const location: js.Object = try window.get(js.Object, "location");
-    try location.call(void, "reload", .{});
+// const response = await fetch("/api")
+fn onResponse(response: js.Object) !void {
+    try wasm.text(response, onText);
 }
 
 fn onClickInner(ctx: zx.EventContext) !void {
     const target = ctx.getEvent().getTarget() orelse return;
 
-    const url = try target.callAlloc(
+    const base_url = try target.callAlloc(
         js.String,
         wasm.allocator,
         "getAttribute",
-        .{js.string("url")},
+        .{js.string("base_url")},
     );
+    defer wasm.allocator.free(base_url);
 
     const pokedex = try target.callAlloc(
         js.String,
@@ -41,15 +58,16 @@ fn onClickInner(ctx: zx.EventContext) !void {
         "getAttribute",
         .{js.string("pokedex")},
     );
+    defer wasm.allocator.free(pokedex);
 
-    const api = try std.fmt.allocPrint(
+    const url = try std.fmt.allocPrint(
         wasm.allocator,
-        "{s}/{s}",
-        .{ url, pokedex },
+        "{s}/{s}/{}",
+        .{ base_url, pokedex, @intFromEnum(target.value) },
     );
-    defer wasm.allocator.free(api);
+    defer wasm.allocator.free(url);
 
-    try wasm.api.execute(api, onCompletion);
+    try wasm.fetch(url, onResponse);
 }
 
 fn onClick(ctx: zx.EventContext) void {
@@ -59,19 +77,28 @@ fn onClick(ctx: zx.EventContext) void {
 
 const ButtonProps = struct {
     is_tracked: bool,
-    pokedex: i64, // should be database.Int but WASM can't "link" `database` module
+    pokedex: api.database.Id,
     text: []const u8,
 };
 
-pub fn Button(allocator: zx.Allocator, props: ButtonProps) !zx.Component {
-    // NOTE: `/` in URL will be added in onClick's handler
-    const class, const url = if (props.is_tracked)
-        .{ "text-green-600", "/api/untrack" }
+fn urlFor(is_tracked: bool) []const u8 {
+    return if (is_tracked)
+        "/api/untrack"
     else
-        .{ "", "/api/track" };
+        "/api/track";
+}
 
+fn styleFor(is_tracked: bool) []const u8 {
+    // NOTE: `/` in URL will be added in onClick's handler
+    return if (is_tracked)
+        "text-green-600"
+    else
+        "";
+}
+
+pub fn Button(allocator: zx.Allocator, props: ButtonProps) !zx.Component {
     return (
-        <button @{allocator} onclick={onClick} {class} {url} pokedex={props.pokedex}>
+        <button @{allocator} onclick={onClick} class={styleFor(props.is_tracked)} base_url={urlFor(props.is_tracked)} pokedex={props.pokedex}>
             {props.text}
         </button>
     );
@@ -102,12 +129,6 @@ pub fn Page(ctx: app.PageCtx) !zx.Component {
         );
     };
 
-    const all_tracked = try session
-        .query(database.Tracked)
-        .where("user_id", user.id)
-        .orderBy(.species_dex, .asc)
-        .findAll();
-
     const all_species = try session
         .query(database.Species)
         .orderBy(.pokedex, .asc)
@@ -116,7 +137,7 @@ pub fn Page(ctx: app.PageCtx) !zx.Component {
     const buttons = try ctx.arena.alloc(ButtonProps, all_species.len);
     for (all_species, 0..) |species, i| {
         buttons[i] = .{
-            .is_tracked = isTracked(species, all_tracked),
+            .is_tracked = try user.isTracking(&session, species),
             .pokedex = species.pokedex,
             .text = species.name,
         };

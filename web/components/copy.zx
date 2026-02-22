@@ -1,0 +1,47 @@
+const std = @import("std");
+
+const zx = @import("zx");
+const js = zx.Client.js;
+
+const wasm = @import("../wasm.zig");
+
+fn onWriteText(_: js.Object) !void {}
+
+fn onClickInner(ctx: zx.EventContext) !void {
+    const target = ctx.getEvent().getTarget() orelse return;
+
+    const content: []const u8 = try target.callAlloc(
+        js.String,
+        wasm.allocator,
+        "getAttribute",
+        .{js.string("content")},
+    );
+    defer wasm.allocator.free(content);
+
+    const navigator: js.Object = try js.global.get(js.Object, "navigator");
+    const clipboard: js.Object = try navigator.get(js.Object, "clipboard");
+
+    const promise: js.Object = try clipboard.call(js.Object, "writeText", .{js.string(content)});
+    try wasm.js.await(promise, .{
+        .onFulfill = onWriteText,
+    });
+}
+
+fn onClick(ctx: zx.EventContext) void {
+    if (zx.platform != .browser) return;
+    onClickInner(ctx) catch {};
+}
+
+pub fn CopyText(
+    allocator: zx.Allocator,
+    props: struct {
+        display: []const u8,
+        content: []const u8,
+    },
+) !zx.Component {
+    return (
+        <button @{allocator} onclick={onClick} content={props.content}>
+            {props.display}
+        </button>
+    );
+}

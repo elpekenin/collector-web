@@ -9,7 +9,9 @@ const cookie_name = "auth_token";
 pub fn setToken(response: *const zx.Response, token: []const u8) void {
     response.setCookie(cookie_name, token, .{
         .path = "/",
-        .max_age = 3600,
+        // 10 days worth of login
+        // TODO: extend duration when navigating web?
+        .max_age = 60 * 60 * 24 * 10,
     });
 }
 

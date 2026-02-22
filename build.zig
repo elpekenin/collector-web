@@ -18,6 +18,12 @@ pub fn build(b: *Build) !void {
     addConfig(usize, b, options_builder, "max_awaitable_promises", 5);
     const options = options_builder.createModule();
 
+    const api = b.createModule(.{
+        .root_source_file = b.path("api.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+
     const database = b.createModule(.{
         .root_source_file = b.path("database/database.zig"),
         .target = target,
@@ -38,6 +44,7 @@ pub fn build(b: *Build) !void {
         .target = target,
         .optimize = optimize,
         .imports = &.{
+            .{ .name = "api", .module = api },
             .{ .name = "database", .module = database },
         },
     });
@@ -79,11 +86,15 @@ pub fn build(b: *Build) !void {
     }));
 
     // HACK: make module available to ZX modules
-    const modules: []const *Build.Step.Compile = &.{zx_build.client.?.exe};
-    for (modules) |executable| {
+    const executables: []const *Build.Step.Compile = &.{
+        zx_build.client.?.exe,
+    };
+    for (executables) |executable| {
+        executable.root_module.addImport("api", api);
         const module = executable.root_module.import_table.get("zx") orelse continue;
 
         if (module.import_table.get("zx_meta")) |meta| {
+            meta.addImport("api", api);
             meta.addImport("options", options);
         }
     }
